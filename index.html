@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#2f6a5a">
+<title>Yum — Fiche de pointage</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23f4c842'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='Arial Black' font-size='34' fill='%232f6a5a'%3Eyum%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --green: #2f6a5a;
+    --green-dark: #235244;
+    --green-light: #c3dcd2;
+    --green-row: #d8e8e0;
+    --yellow: #f4c842;
+    --yellow-light: #fbe9a8;
+    --text: #1d3a32;
+    --ink: #1a3a8a;
+    --border: #2f6a5a;
+    --paper: #fbfaf3;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #5a3a22;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(0,0,0,0.25), transparent 60%),
+      radial-gradient(circle at 80% 70%, rgba(0,0,0,0.25), transparent 60%),
+      repeating-linear-gradient(115deg, #6b4527 0 6px, #5a3a22 6px 12px, #4a2f1c 12px 18px);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+    -webkit-text-size-adjust: 100%;
+  }
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(35,82,68,0.95);
+    color: #fff;
+    padding: 10px 14px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .toolbar h1 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    flex: 1;
+    letter-spacing: 0.3px;
+  }
+  .toolbar button {
+    background: var(--yellow);
+    color: var(--green-dark);
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    box-shadow: 0 2px 0 rgba(0,0,0,0.2);
+  }
+  .toolbar button:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(0,0,0,0.2); }
+  .toolbar button.ghost {
+    background: transparent;
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.5);
+    box-shadow: none;
+  }
+
+  .card {
+    max-width: 980px;
+    margin: 16px auto 40px;
+    background: var(--paper);
+    border-radius: 4px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    padding: 14px 12px 18px;
+  }
+
+  .header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px 14px;
+    border-bottom: 1px solid #d6d2bf;
+    margin-bottom: 8px;
+  }
+  .logo {
+    background: var(--yellow);
+    color: var(--green-dark);
+    font-family: "Arial Black", Arial, sans-serif;
+    font-weight: 900;
+    font-style: italic;
+    font-size: 38px;
+    line-height: 1;
+    padding: 6px 14px 8px;
+    border-radius: 8px;
+    letter-spacing: -1px;
+    position: relative;
+  }
+  .logo .reg {
+    font-size: 10px;
+    vertical-align: top;
+    font-style: normal;
+    margin-left: 2px;
+  }
+  .logo .tag {
+    display: block;
+    font-family: inherit;
+    font-weight: 700;
+    font-style: italic;
+    font-size: 9px;
+    letter-spacing: 0.5px;
+    color: var(--green-dark);
+    margin-top: -2px;
+  }
+  .title {
+    text-align: center;
+    color: var(--green-dark);
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  .title .fr { font-size: 18px; font-style: italic; }
+  .title .en { font-size: 16px; font-style: italic; }
+  .player {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--green-dark);
+    font-weight: 700;
+  }
+  .player-labels { text-align: right; line-height: 1.1; }
+  .player input {
+    border: none;
+    border-bottom: 1.5px solid var(--green-dark);
+    background: transparent;
+    width: 110px;
+    font-size: 18px;
+    color: var(--ink);
+    font-family: "Comic Sans MS", "Bradley Hand", cursive;
+    padding: 2px 4px;
+    outline: none;
+  }
+
+  table.sheet {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--paper);
+    margin-bottom: 10px;
+    table-layout: fixed;
+  }
+  table.sheet th, table.sheet td {
+    border: 1.5px solid var(--green);
+    padding: 0;
+    text-align: center;
+    vertical-align: middle;
+    height: 38px;
+    font-size: 12px;
+    color: var(--green-dark);
+    background: var(--green-row);
+  }
+  table.sheet thead th {
+    background: var(--green);
+    color: #fff;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    height: 34px;
+  }
+  table.sheet thead th.col-num {
+    background: var(--green);
+    color: #fff;
+    font-size: 14px;
+    width: 9%;
+  }
+  td.label {
+    text-align: left;
+    padding: 4px 8px;
+    line-height: 1.05;
+    background: var(--green-row);
+    font-weight: 700;
+  }
+  td.label .fr { display: block; font-size: 12px; }
+  td.label .en { display: block; font-size: 10.5px; font-style: italic; opacity: 0.85; }
+  td.label .num {
+    display: inline-block;
+    color: var(--green-dark);
+    font-size: 22px;
+    font-weight: 900;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  td.label .num.right {
+    float: right;
+    margin: 0 0 0 4px;
+  }
+  td.maxscore {
+    background: var(--green-row);
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--green-dark);
+  }
+  td.maxscore .dice {
+    display: inline-block;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  td.input-cell {
+    background: #fff;
+    padding: 0;
+  }
+  td.input-cell input {
+    width: 100%;
+    height: 100%;
+    min-height: 36px;
+    border: none;
+    background: transparent;
+    text-align: center;
+    font-family: "Comic Sans MS", "Bradley Hand", cursive;
+    color: var(--ink);
+    font-size: 18px;
+    padding: 0;
+    outline: none;
+    -moz-appearance: textfield;
+  }
+  td.input-cell input::-webkit-outer-spin-button,
+  td.input-cell input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  td.input-cell input:focus {
+    background: #fff8d6;
+  }
+
+  tr.computed td.input-cell { background: #f3eedd; }
+  tr.computed td.input-cell input { font-weight: 700; color: var(--green-dark); }
+
+  tr.bonus td.label, tr.bonus td.maxscore { background: var(--yellow); color: var(--green-dark); }
+  tr.bonus td.label .fr, tr.bonus td.label .en { font-weight: 700; }
+  tr.total td.label, tr.total td.maxscore { background: var(--green); color: #fff; }
+  tr.total td.label { font-weight: 700; }
+  tr.total td.label .fr, tr.total td.label .en { color: #fff; }
+  tr.subtotal td.label, tr.subtotal td.maxscore { background: var(--green); color: #fff; font-weight: 700; }
+  tr.subtotal td.label .fr { color: #fff; }
+  tr.yum td.label, tr.yum td.maxscore { background: var(--yellow); color: var(--green-dark); }
+  tr.yum td.label .yum-word {
+    font-family: "Arial Black", Arial, sans-serif;
+    font-weight: 900;
+    font-style: italic;
+    font-size: 22px;
+    color: var(--green-dark);
+    letter-spacing: -1px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  .grand {
+    margin-top: 12px;
+    background: var(--green-dark);
+    color: #fff;
+    padding: 12px 14px;
+    border-radius: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 700;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .grand .winners {
+    font-size: 13px;
+    color: var(--yellow);
+    font-weight: 700;
+  }
+  .grand-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .grand-cell {
+    background: var(--yellow);
+    color: var(--green-dark);
+    padding: 6px 10px;
+    border-radius: 4px;
+    min-width: 46px;
+    text-align: center;
+    font-size: 16px;
+  }
+  .grand-cell .col { display: block; font-size: 9px; opacity: 0.75; font-weight: 700; }
+
+  /* Dice icons */
+  .die {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    background: #fff;
+    border: 1.2px solid var(--green-dark);
+    border-radius: 3px;
+    position: relative;
+    vertical-align: middle;
+    margin: 0 1px;
+  }
+  .die .pip {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    background: var(--green-dark);
+    border-radius: 50%;
+  }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .card { margin: 8px; padding: 8px 6px 12px; }
+    .header { grid-template-columns: 1fr; gap: 6px; text-align: center; }
+    .player { justify-content: center; }
+    .logo { justify-self: center; font-size: 30px; padding: 5px 10px 7px; }
+    .title .fr { font-size: 15px; }
+    .title .en { font-size: 13px; }
+    table.sheet th, table.sheet td { height: 34px; font-size: 11px; }
+    td.label .fr { font-size: 10.5px; }
+    td.label .en { font-size: 9px; }
+    td.label .num { font-size: 17px; }
+    td.input-cell input { font-size: 16px; }
+    td.maxscore { font-size: 12px; }
+    table.sheet thead th { font-size: 9.5px; }
+    tr.yum td.label .yum-word { font-size: 17px; }
+    .toolbar h1 { font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>Yum — Fiche de pointage</h1>
+  <button id="newGameBtn" class="ghost" type="button">Nouvelle partie</button>
+  <button id="resetColBtn" type="button">Effacer joueur</button>
+</div>
+
+<div class="card" id="card">
+
+  <div class="header">
+    <div class="logo">yum<span class="reg">®</span><span class="tag">classique · classic</span></div>
+    <div class="title">
+      <div class="fr">Fiche de pointage</div>
+      <div class="en">Score sheet</div>
+    </div>
+    <div class="player">
+      <div class="player-labels">JOUEUR<br>PLAYER</div>
+      <input id="playerName" type="text" maxlength="14" placeholder="">
+    </div>
+  </div>
+
+  <!-- UPPER SECTION -->
+  <table class="sheet" id="upperTable">
+    <thead>
+      <tr>
+        <th style="width:26%">JEU DE DÉS<br><span style="font-weight:400;font-style:italic">ROLL</span></th>
+        <th style="width:20%">SCORE MAXIMAL<br><span style="font-weight:400;font-style:italic">MAXIMUM SCORE</span></th>
+        <th class="col-num">1</th>
+        <th class="col-num">2</th>
+        <th class="col-num">3</th>
+        <th class="col-num">4</th>
+        <th class="col-num">5</th>
+        <th class="col-num">6</th>
+      </tr>
+    </thead>
+    <tbody id="upperBody"></tbody>
+  </table>
+
+  <!-- LOWER SECTION -->
+  <table class="sheet" id="lowerTable">
+    <colgroup>
+      <col style="width:26%"><col style="width:20%">
+      <col style="width:9%"><col style="width:9%"><col style="width:9%">
+      <col style="width:9%"><col style="width:9%"><col style="width:9%">
+    </colgroup>
+    <tbody id="lowerBody"></tbody>
+  </table>
+
+  <div class="grand">
+    <div>TOTAL GÉNÉRAL · <span style="font-style:italic">GRAND TOTAL</span></div>
+    <div class="grand-row" id="grandRow"></div>
+  </div>
+  <div style="margin-top:8px;text-align:center;font-size:11px;color:#fff;background:rgba(0,0,0,0.25);padding:6px;border-radius:4px;" id="winnerLine"></div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const PLAYER_COUNT = 6;
+  const STORAGE_KEY = 'yum-card-v1';
+
+  // Die face pip positions (CSS top/left in % of die)
+  const PIPS = {
+    1: [[50,50]],
+    2: [[25,25],[75,75]],
+    3: [[25,25],[50,50],[75,75]],
+    4: [[25,25],[25,75],[75,25],[75,75]],
+    5: [[25,25],[25,75],[50,50],[75,25],[75,75]],
+    6: [[25,25],[25,50],[25,75],[75,25],[75,50],[75,75]]
+  };
+  function dieHtml(n) {
+    const pips = PIPS[n].map(([t,l]) =>
+      `<span class="pip" style="top:${t}%;left:${l}%;transform:translate(-50%,-50%)"></span>`).join('');
+    return `<span class="die">${pips}</span>`;
+  }
+
+  // Upper rows: 1s through 6s — max score is value × 5
+  const UPPER_ROWS = [1,2,3,4,5,6].map(n => ({
+    id: 'u' + n,
+    labelFr: '',
+    labelEn: '',
+    num: n,
+    max: n * 5,
+    showDie: n,
+    validate: (v) => v >= 0 && v <= n * 5 && v % n === 0
+  }));
+
+  // Lower section rows
+  const LOWER_ROWS = [
+    { id: 'l3k', labelFr: 'PAREILS', labelEn: 'OF A KIND', numLeft: 3,
+      maxFr: 'TOTAL DES 5 DÉS', maxEn: 'TOTAL ALL DICE', maxNum: 30 },
+    { id: 'l4k', labelFr: 'PAREILS', labelEn: 'OF A KIND', numLeft: 4,
+      maxFr: 'TOTAL DES 5 DÉS', maxEn: 'TOTAL ALL DICE', maxNum: 30 },
+    { id: 'lss', labelFr: 'COURTE SÉQUENCE DE', labelEn: 'SHORT STRAIGHT OF', numRight: 4,
+      maxNum: 15, fixed: 15 },
+    { id: 'lls', labelFr: 'LONGUE SÉQUENCE DE', labelEn: 'LONG STRAIGHT OF', numRight: 5,
+      maxNum: 20, fixed: 20 },
+    { id: 'lhr', labelFr: 'ROULEMENT DE SURPLUS', labelEn: 'HIGH ROLL',
+      maxFr: 'TOTAL DES 5 DÉS', maxEn: 'TOTAL ALL DICE', maxNum: 30 },
+    { id: 'lfh', labelFr: 'MAIN PLEINE', labelEn: 'FULL HOUSE', maxNum: 25, fixed: 25 },
+    { id: 'lyum', labelFr: '5 PAREILS', labelEn: '5 OF A KIND', maxNum: 30, fixed: 30, yum: true }
+  ];
+
+  // ---- Build upper table ----
+  const upperBody = document.getElementById('upperBody');
+  UPPER_ROWS.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td class="label"><span class="num">${r.num}</span></td>` +
+      `<td class="maxscore">${r.max} <span class="dice">${dieHtml(r.showDie)}</span></td>` +
+      colCells(r.id);
+    upperBody.appendChild(tr);
+  });
+
+  // Subtotal upper
+  const trSub = document.createElement('tr');
+  trSub.className = 'subtotal computed';
+  trSub.innerHTML =
+    `<td class="label" colspan="2" style="text-align:center;color:#fff">TOTAL PARTIEL · <span style="font-style:italic">SUB TOTAL</span></td>` +
+    colCells('uSub', true);
+  upperBody.appendChild(trSub);
+
+  // Bonus row
+  const trBonus = document.createElement('tr');
+  trBonus.className = 'bonus computed';
+  trBonus.innerHTML =
+    `<td class="label" style="background:var(--yellow)"><span style="color:var(--green-dark);font-weight:700">BONI</span><br><span style="font-style:italic;color:var(--green-dark)">BONUS</span></td>` +
+    `<td class="label" style="background:var(--yellow);text-align:center"><div style="font-size:11px">SI 63 OU PLUS<br><span style="font-style:italic">IF 63 OR OVER</span></div><div style="font-size:18px;font-weight:900;margin-top:2px">25</div></td>` +
+    colCells('uBonus', true);
+  upperBody.appendChild(trBonus);
+
+  // Upper total
+  const trUpperTotal = document.createElement('tr');
+  trUpperTotal.className = 'total computed';
+  trUpperTotal.innerHTML =
+    `<td class="label" colspan="2" style="text-align:center"><span class="fr">TOTAL · PARTIE SUPÉRIEURE</span><span class="en">OF UPPER HALF</span></td>` +
+    colCells('uTotal', true);
+  upperBody.appendChild(trUpperTotal);
+
+  // ---- Build lower table ----
+  const lowerBody = document.getElementById('lowerBody');
+  LOWER_ROWS.forEach(r => {
+    const tr = document.createElement('tr');
+    let labelHtml = '<td class="label">';
+    if (r.yum) {
+      labelHtml += `<span class="yum-word">YUM</span><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span>`;
+    } else if (r.numLeft) {
+      labelHtml += `<span class="num">${r.numLeft}</span><div style="display:inline-block;vertical-align:middle"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div>`;
+    } else if (r.numRight) {
+      labelHtml += `<div style="display:inline-block;vertical-align:middle"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div><span class="num right">${r.numRight}</span>`;
+    } else {
+      labelHtml += `<span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span>`;
+    }
+    labelHtml += '</td>';
+
+    let maxHtml = '<td class="maxscore">';
+    if (r.maxFr) {
+      maxHtml += `<div style="font-size:10.5px;line-height:1.1">${r.maxFr}<br><span style="font-style:italic">${r.maxEn}</span></div>`;
+    } else {
+      maxHtml += `<span style="font-size:18px;font-weight:900">${r.maxNum}</span>`;
+    }
+    maxHtml += '</td>';
+
+    tr.className = r.yum ? 'yum' : '';
+    tr.innerHTML = labelHtml + maxHtml + colCells(r.id);
+    lowerBody.appendChild(tr);
+  });
+
+  // Lower total
+  const trLowerTotal = document.createElement('tr');
+  trLowerTotal.className = 'total computed';
+  trLowerTotal.innerHTML =
+    `<td class="label" colspan="2" style="text-align:center"><span class="fr">TOTAL · PARTIE INFÉRIEURE</span><span class="en">OF LOWER HALF</span></td>` +
+    colCells('lTotal', true);
+  lowerBody.appendChild(trLowerTotal);
+
+  // Upper total carry
+  const trUpperCarry = document.createElement('tr');
+  trUpperCarry.className = 'total computed';
+  trUpperCarry.innerHTML =
+    `<td class="label" colspan="2" style="text-align:center"><span class="fr">TOTAL · PARTIE SUPÉRIEURE</span><span class="en">OF UPPER HALF</span></td>` +
+    colCells('uTotalCarry', true);
+  lowerBody.appendChild(trUpperCarry);
+
+  // Build the grand total row in footer
+  const grandRow = document.getElementById('grandRow');
+  for (let c = 1; c <= PLAYER_COUNT; c++) {
+    const div = document.createElement('div');
+    div.className = 'grand-cell';
+    div.innerHTML = `<span class="col">${c}</span><span id="grand-${c}">0</span>`;
+    grandRow.appendChild(div);
+  }
+
+  function colCells(idPrefix, readOnly) {
+    let html = '';
+    for (let c = 1; c <= PLAYER_COUNT; c++) {
+      const id = `${idPrefix}-${c}`;
+      html += `<td class="input-cell"><input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" id="${id}" data-col="${c}" data-row="${idPrefix}" ${readOnly ? 'readonly tabindex="-1"' : ''}></td>`;
+    }
+    return html;
+  }
+
+  // ---- State + Compute ----
+  function getNum(id) {
+    const el = document.getElementById(id);
+    if (!el) return 0;
+    const v = parseInt(el.value, 10);
+    return isNaN(v) ? 0 : v;
+  }
+  function setComputed(id, val, showZero) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = (val === 0 && !showZero) ? '' : String(val);
+  }
+
+  function recompute() {
+    let bestTotal = -1;
+    const totals = [];
+    for (let c = 1; c <= PLAYER_COUNT; c++) {
+      // Upper subtotal
+      let sub = 0;
+      for (let n = 1; n <= 6; n++) sub += getNum(`u${n}-${c}`);
+      setComputed(`uSub-${c}`, sub);
+
+      // Bonus
+      const bonus = sub >= 63 ? 25 : 0;
+      setComputed(`uBonus-${c}`, bonus, sub >= 63);
+
+      // Upper total
+      const upperTotal = sub > 0 || bonus > 0 ? sub + bonus : 0;
+      setComputed(`uTotal-${c}`, upperTotal);
+      setComputed(`uTotalCarry-${c}`, upperTotal);
+
+      // Lower total
+      let lower = 0;
+      LOWER_ROWS.forEach(r => { lower += getNum(`${r.id}-${c}`); });
+      setComputed(`lTotal-${c}`, lower);
+
+      // Grand
+      const grand = upperTotal + lower;
+      totals.push(grand);
+      const g = document.getElementById(`grand-${c}`);
+      if (g) g.textContent = String(grand);
+      if (grand > bestTotal) bestTotal = grand;
+    }
+    // Winner line
+    const playerName = (document.getElementById('playerName').value || '').trim();
+    const winnerLine = document.getElementById('winnerLine');
+    const anyScore = totals.some(t => t > 0);
+    if (!anyScore) {
+      winnerLine.textContent = playerName ? `Bonne partie, ${playerName} !` : '';
+    } else {
+      const winners = [];
+      totals.forEach((t, i) => { if (t === bestTotal && t > 0) winners.push(i + 1); });
+      winnerLine.textContent = `Meilleur score : ${bestTotal} — Colonne${winners.length>1?'s':''} ${winners.join(', ')}`;
+    }
+  }
+
+  // ---- Persistence ----
+  function save() {
+    const data = { player: document.getElementById('playerName').value, cells: {} };
+    document.querySelectorAll('td.input-cell input:not([readonly])').forEach(inp => {
+      if (inp.value !== '') data.cells[inp.id] = inp.value;
+    });
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+  }
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data.player) document.getElementById('playerName').value = data.player;
+      if (data.cells) {
+        Object.keys(data.cells).forEach(k => {
+          const el = document.getElementById(k);
+          if (el) el.value = data.cells[k];
+        });
+      }
+    } catch (e) {}
+  }
+
+  // ---- Input handling ----
+  document.querySelectorAll('td.input-cell input:not([readonly])').forEach(inp => {
+    inp.addEventListener('input', () => {
+      // Only digits
+      inp.value = inp.value.replace(/[^0-9]/g, '').slice(0, 3);
+      recompute();
+      save();
+    });
+    inp.addEventListener('focus', () => inp.select());
+  });
+  document.getElementById('playerName').addEventListener('input', () => {
+    recompute(); save();
+  });
+
+  document.getElementById('newGameBtn').addEventListener('click', () => {
+    if (!confirm('Démarrer une nouvelle partie ? Tous les scores seront effacés.')) return;
+    document.querySelectorAll('td.input-cell input:not([readonly])').forEach(i => i.value = '');
+    document.getElementById('playerName').value = '';
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    recompute();
+  });
+
+  document.getElementById('resetColBtn').addEventListener('click', () => {
+    const col = prompt('Effacer quelle colonne ? (1–6)');
+    const c = parseInt(col, 10);
+    if (!c || c < 1 || c > PLAYER_COUNT) return;
+    document.querySelectorAll(`td.input-cell input[data-col="${c}"]:not([readonly])`).forEach(i => i.value = '');
+    recompute(); save();
+  });
+
+  // Init
+  load();
+  recompute();
+})();
+</script>
+</body>
+</html>
