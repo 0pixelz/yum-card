@@ -517,6 +517,41 @@
     background: var(--green-dark);
     border-radius: 50%;
   }
+  .die.faded {
+    background: transparent;
+    border-style: dashed;
+    opacity: 0.5;
+  }
+  .die.faded .pip {
+    opacity: 0.35;
+  }
+
+  /* Bonus row dice slots */
+  .picker.bonus-info .row-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+  .picker.bonus-info .row-dice {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .picker.bonus-info .row-dice .die {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+  }
+  .picker.bonus-info .row-dice .die .pip {
+    width: 2.2px;
+    height: 2.2px;
+  }
+  .picker.bonus-info .bonus-row.scratched .row-dice .die {
+    opacity: 0.4;
+  }
 
   /* Responsive */
   @media (max-width: 640px) {
@@ -666,10 +701,19 @@
     5: [[25,25],[25,75],[50,50],[75,25],[75,75]],
     6: [[25,25],[50,25],[75,25],[25,75],[50,75],[75,75]]
   };
-  function dieHtml(n) {
+  function dieHtml(n, faded) {
     const pips = PIPS[n].map(([t,l]) =>
       `<span class="pip" style="top:${t}%;left:${l}%;transform:translate(-50%,-50%)"></span>`).join('');
-    return `<span class="die">${pips}</span>`;
+    return `<span class="die${faded ? ' faded' : ''}">${pips}</span>`;
+  }
+
+  function bonusDiceHtml(value, diceCount) {
+    const targetSlots = 3;
+    const totalSlots = Math.max(targetSlots, diceCount);
+    let html = '';
+    for (let i = 0; i < diceCount; i++) html += dieHtml(value);
+    for (let i = diceCount; i < totalSlots; i++) html += dieHtml(value, true);
+    return `<span class="row-dice">${html}</span>`;
   }
 
   // Upper rows: 1s through 6s — max score is value × 5
@@ -951,7 +995,10 @@
     const rowsHtml = rows.slice().reverse().map(r => {
       const s = rowStatus(r);
       return `<div class="bonus-row ${s.cls}">
-          <span class="target">3 × ${r.n} = ${r.target}</span>
+          <div class="row-left">
+            ${bonusDiceHtml(r.n, r.diceCount)}
+            <span class="target">3 × ${r.n} = ${r.target}</span>
+          </div>
           <span class="status">${s.text}</span>
         </div>`;
     }).join('');
