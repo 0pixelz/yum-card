@@ -212,19 +212,21 @@
     background: var(--green-row);
     font-weight: 700;
   }
+  td.label .label-inner {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+  }
+  td.label .label-text { flex: 1; min-width: 0; }
   td.label .fr { display: block; font-size: 12px; }
   td.label .en { display: block; font-size: 10.5px; font-style: italic; opacity: 0.85; }
   td.label .num {
-    display: inline-block;
     color: var(--green-dark);
     font-size: 22px;
     font-weight: 900;
-    margin-right: 4px;
-    vertical-align: middle;
-  }
-  td.label .num.right {
-    float: right;
-    margin: 0 0 0 4px;
+    line-height: 1;
+    flex-shrink: 0;
   }
   td.maxscore {
     background: var(--green-row);
@@ -232,11 +234,28 @@
     font-size: 13px;
     color: var(--green-dark);
   }
-  td.maxscore .dice {
-    display: inline-block;
-    margin-left: 6px;
-    vertical-align: middle;
+  td.maxscore .max-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
   }
+  td.maxscore .maxnum {
+    font-size: 18px;
+    font-weight: 900;
+  }
+  td.maxscore .dice {
+    display: inline-flex;
+    align-items: center;
+  }
+  td.maxscore .maxlabel {
+    font-size: 10.5px;
+    line-height: 1.15;
+    text-align: center;
+  }
+  td.maxscore .maxlabel .fr,
+  td.maxscore .maxlabel .en { display: block; }
+  td.maxscore .maxlabel .en { font-style: italic; }
 
   td.input-cell {
     background: #fff;
@@ -590,7 +609,7 @@
     3: [[25,25],[50,50],[75,75]],
     4: [[25,25],[25,75],[75,25],[75,75]],
     5: [[25,25],[25,75],[50,50],[75,25],[75,75]],
-    6: [[25,25],[25,50],[25,75],[75,25],[75,50],[75,75]]
+    6: [[25,25],[50,25],[75,25],[25,75],[50,75],[75,75]]
   };
   function dieHtml(n) {
     const pips = PIPS[n].map(([t,l]) =>
@@ -630,8 +649,8 @@
   UPPER_ROWS.forEach(r => {
     const tr = document.createElement('tr');
     tr.innerHTML =
-      `<td class="label"><span class="num">${r.num}</span></td>` +
-      `<td class="maxscore">${r.max} <span class="dice">${dieHtml(r.showDie)}</span></td>` +
+      `<td class="label"><div class="label-inner"><span class="num">${r.num}</span></div></td>` +
+      `<td class="maxscore"><div class="max-inner"><span class="maxnum">${r.max}</span><span class="dice">${dieHtml(r.showDie)}</span></div></td>` +
       colCells(r.id);
     upperBody.appendChild(tr);
   });
@@ -667,21 +686,21 @@
     const tr = document.createElement('tr');
     let labelHtml = '<td class="label">';
     if (r.yum) {
-      labelHtml += `<span class="yum-word">YUM</span><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span>`;
+      labelHtml += `<div class="label-inner"><span class="yum-word">YUM</span><div class="label-text"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div></div>`;
     } else if (r.numLeft) {
-      labelHtml += `<span class="num">${r.numLeft}</span><div style="display:inline-block;vertical-align:middle"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div>`;
+      labelHtml += `<div class="label-inner"><span class="num">${r.numLeft}</span><div class="label-text"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div></div>`;
     } else if (r.numRight) {
-      labelHtml += `<div style="display:inline-block;vertical-align:middle"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div><span class="num right">${r.numRight}</span>`;
+      labelHtml += `<div class="label-inner"><div class="label-text"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div><span class="num">${r.numRight}</span></div>`;
     } else {
-      labelHtml += `<span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span>`;
+      labelHtml += `<div class="label-inner"><div class="label-text"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div></div>`;
     }
     labelHtml += '</td>';
 
     let maxHtml = '<td class="maxscore">';
     if (r.maxFr) {
-      maxHtml += `<div style="font-size:10.5px;line-height:1.1"><span class="fr">${r.maxFr}</span><span class="en" style="font-style:italic">${r.maxEn}</span></div>`;
+      maxHtml += `<div class="maxlabel"><span class="fr">${r.maxFr}</span><span class="en">${r.maxEn}</span></div>`;
     } else {
-      maxHtml += `<span style="font-size:18px;font-weight:900">${r.maxNum}</span>`;
+      maxHtml += `<span class="maxnum">${r.maxNum}</span>`;
     }
     maxHtml += '</td>';
 
