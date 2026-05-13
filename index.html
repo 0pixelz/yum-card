@@ -218,6 +218,7 @@
     gap: 6px;
     width: 100%;
   }
+  td.label .label-inner.upper-label { justify-content: center; gap: 10px; }
   td.label .label-text { flex: 1; min-width: 0; }
   td.label .fr { display: block; font-size: 12px; }
   td.label .en { display: block; font-size: 10.5px; font-style: italic; opacity: 0.85; }
@@ -227,7 +228,10 @@
     font-weight: 900;
     line-height: 1;
     flex-shrink: 0;
+    min-width: 18px;
+    text-align: center;
   }
+  td.label .label-inner .die { flex-shrink: 0; }
   td.maxscore {
     background: var(--green-row);
     font-weight: 700;
@@ -649,8 +653,8 @@
   UPPER_ROWS.forEach(r => {
     const tr = document.createElement('tr');
     tr.innerHTML =
-      `<td class="label"><div class="label-inner"><span class="num">${r.num}</span></div></td>` +
-      `<td class="maxscore"><div class="max-inner"><span class="maxnum">${r.max}</span><span class="dice">${dieHtml(r.showDie)}</span></div></td>` +
+      `<td class="label"><div class="label-inner upper-label"><span class="num">${r.num}</span><span class="dice">${dieHtml(r.showDie)}</span></div></td>` +
+      `<td class="maxscore"><div class="max-inner"><span class="maxnum">${r.max}</span></div></td>` +
       colCells(r.id);
     upperBody.appendChild(tr);
   });
