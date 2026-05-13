@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#2f6a5a">
 <title>Yum — Fiche de pointage</title>
+<meta name="description" content="Yum / Yahtzee-style score sheet">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23f4c842'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='Arial Black' font-size='34' fill='%232f6a5a'%3Eyum%3C/text%3E%3C/svg%3E">
 <style>
   :root {
@@ -71,6 +72,31 @@
     border: 1px solid rgba(255,255,255,0.5);
     box-shadow: none;
   }
+  .lang-toggle {
+    display: inline-flex;
+    border: 1px solid rgba(255,255,255,0.5);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .lang-toggle button {
+    background: transparent;
+    color: #fff;
+    border: none;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    box-shadow: none;
+    border-radius: 0;
+  }
+  .lang-toggle button + button { border-left: 1px solid rgba(255,255,255,0.5); }
+  .lang-toggle button.active {
+    background: var(--yellow);
+    color: var(--green-dark);
+  }
+  body.lang-fr .en { display: none !important; }
+  body.lang-en .fr { display: none !important; }
 
   .card {
     max-width: 980px;
@@ -438,24 +464,37 @@
   }
 </style>
 </head>
-<body>
+<body class="lang-fr">
 
 <div class="toolbar">
-  <h1>Yum — Fiche de pointage</h1>
-  <button id="newGameBtn" class="ghost" type="button">Nouvelle partie</button>
-  <button id="resetColBtn" type="button">Effacer joueur</button>
+  <h1>
+    <span class="fr">Yum — Fiche de pointage</span>
+    <span class="en">Yum — Score sheet</span>
+  </h1>
+  <div class="lang-toggle" id="langToggle" role="group" aria-label="Langue / Language">
+    <button type="button" data-lang="fr">FR</button>
+    <button type="button" data-lang="en">EN</button>
+  </div>
+  <button id="newGameBtn" class="ghost" type="button">
+    <span class="fr">Nouvelle partie</span>
+    <span class="en">New game</span>
+  </button>
+  <button id="resetColBtn" type="button">
+    <span class="fr">Effacer joueur</span>
+    <span class="en">Clear player</span>
+  </button>
 </div>
 
 <div class="card" id="card">
 
   <div class="header">
-    <div class="logo">yum<span class="reg">®</span><span class="tag">classique · classic</span></div>
+    <div class="logo">yum<span class="reg">®</span><span class="tag"><span class="fr">classique</span><span class="en">classic</span></span></div>
     <div class="title">
       <div class="fr">Fiche de pointage</div>
       <div class="en">Score sheet</div>
     </div>
     <div class="player">
-      <div class="player-labels">JOUEUR<br>PLAYER</div>
+      <div class="player-labels"><span class="fr">JOUEUR</span><span class="en">PLAYER</span></div>
       <input id="playerName" type="text" maxlength="14" placeholder="">
     </div>
   </div>
@@ -464,8 +503,8 @@
   <table class="sheet" id="upperTable">
     <thead>
       <tr>
-        <th style="width:26%">JEU DE DÉS<br><span style="font-weight:400;font-style:italic">ROLL</span></th>
-        <th style="width:20%">SCORE MAXIMAL<br><span style="font-weight:400;font-style:italic">MAXIMUM SCORE</span></th>
+        <th style="width:26%"><span class="fr">JEU DE DÉS</span><span class="en">ROLL</span></th>
+        <th style="width:20%"><span class="fr">SCORE MAXIMAL</span><span class="en">MAXIMUM SCORE</span></th>
         <th class="col-num">1</th>
         <th class="col-num">2</th>
         <th class="col-num">3</th>
@@ -488,7 +527,7 @@
   </table>
 
   <div class="grand">
-    <div>TOTAL GÉNÉRAL · <span style="font-style:italic">GRAND TOTAL</span></div>
+    <div><span class="fr">TOTAL GÉNÉRAL</span><span class="en">GRAND TOTAL</span></div>
     <div class="grand-row" id="grandRow"></div>
   </div>
   <div style="margin-top:8px;text-align:center;font-size:11px;color:#fff;background:rgba(0,0,0,0.25);padding:6px;border-radius:4px;" id="winnerLine"></div>
@@ -501,6 +540,48 @@
 
   const PLAYER_COUNT = 6;
   const STORAGE_KEY = 'yum-card-v1';
+  const LANG_KEY = 'yum-card-lang';
+
+  const T = {
+    fr: {
+      docTitle: 'Yum — Fiche de pointage',
+      newGameConfirm: 'Démarrer une nouvelle partie ? Tous les scores seront effacés.',
+      clearColPrompt: 'Effacer quelle colonne ? (1–6)',
+      goodGame: (name) => `Bonne partie, ${name} !`,
+      bestScore: (score, cols) => `Meilleur score : ${score} — Colonne${cols.length > 1 ? 's' : ''} ${cols.join(', ')}`,
+      pickerClear: 'Effacer',
+      pickerCancel: 'Annuler',
+      pickerCol: (c) => `Col ${c}`,
+      htmlLang: 'fr'
+    },
+    en: {
+      docTitle: 'Yum — Score sheet',
+      newGameConfirm: 'Start a new game? All scores will be cleared.',
+      clearColPrompt: 'Clear which column? (1–6)',
+      goodGame: (name) => `Have a good game, ${name}!`,
+      bestScore: (score, cols) => `Best score: ${score} — Column${cols.length > 1 ? 's' : ''} ${cols.join(', ')}`,
+      pickerClear: 'Clear',
+      pickerCancel: 'Cancel',
+      pickerCol: (c) => `Col ${c}`,
+      htmlLang: 'en'
+    }
+  };
+
+  let currentLang = 'fr';
+  function tr() { return T[currentLang]; }
+  function setLang(lang) {
+    if (!T[lang]) return;
+    currentLang = lang;
+    document.body.classList.toggle('lang-fr', lang === 'fr');
+    document.body.classList.toggle('lang-en', lang === 'en');
+    document.documentElement.lang = T[lang].htmlLang;
+    document.title = T[lang].docTitle;
+    document.querySelectorAll('#langToggle button').forEach(b => {
+      b.classList.toggle('active', b.dataset.lang === lang);
+    });
+    try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
+    recompute();
+  }
 
   // Die face pip positions (CSS top/left in % of die)
   const PIPS = {
@@ -559,7 +640,7 @@
   const trSub = document.createElement('tr');
   trSub.className = 'subtotal computed';
   trSub.innerHTML =
-    `<td class="label" colspan="2" style="text-align:center;color:#fff">TOTAL PARTIEL · <span style="font-style:italic">SUB TOTAL</span></td>` +
+    `<td class="label" colspan="2" style="text-align:center;color:#fff"><span class="fr">TOTAL PARTIEL</span><span class="en">SUB TOTAL</span></td>` +
     colCells('uSub', true);
   upperBody.appendChild(trSub);
 
@@ -567,8 +648,8 @@
   const trBonus = document.createElement('tr');
   trBonus.className = 'bonus computed';
   trBonus.innerHTML =
-    `<td class="label" style="background:var(--yellow)"><span style="color:var(--green-dark);font-weight:700">BONI</span><br><span style="font-style:italic;color:var(--green-dark)">BONUS</span></td>` +
-    `<td class="label" style="background:var(--yellow);text-align:center"><div style="font-size:11px">SI 63 OU PLUS<br><span style="font-style:italic">IF 63 OR OVER</span></div><div style="font-size:18px;font-weight:900;margin-top:2px">25</div></td>` +
+    `<td class="label" style="background:var(--yellow)"><span class="fr" style="color:var(--green-dark);font-weight:700">BONI</span><span class="en" style="color:var(--green-dark);font-weight:700">BONUS</span></td>` +
+    `<td class="label" style="background:var(--yellow);text-align:center"><div style="font-size:11px"><span class="fr">SI 63 OU PLUS</span><span class="en">IF 63 OR OVER</span></div><div style="font-size:18px;font-weight:900;margin-top:2px">25</div></td>` +
     colCells('uBonus', true);
   upperBody.appendChild(trBonus);
 
@@ -649,19 +730,19 @@
 
   // ---- Picker ----
   const PICKER_OPTIONS = {
-    u1: { kind: 'fixed', values: [0,1,2,3,4,5], titleFr: 'JEU DE DÉS 1', titleEn: 'Roll 1 — max 5' },
-    u2: { kind: 'fixed', values: [0,2,4,6,8,10], titleFr: 'JEU DE DÉS 2', titleEn: 'Roll 2 — max 10' },
-    u3: { kind: 'fixed', values: [0,3,6,9,12,15], titleFr: 'JEU DE DÉS 3', titleEn: 'Roll 3 — max 15' },
-    u4: { kind: 'fixed', values: [0,4,8,12,16,20], titleFr: 'JEU DE DÉS 4', titleEn: 'Roll 4 — max 20' },
-    u5: { kind: 'fixed', values: [0,5,10,15,20,25], titleFr: 'JEU DE DÉS 5', titleEn: 'Roll 5 — max 25' },
-    u6: { kind: 'fixed', values: [0,6,12,18,24,30], titleFr: 'JEU DE DÉS 6', titleEn: 'Roll 6 — max 30' },
-    l3k: { kind: 'sum', titleFr: '3 PAREILS', titleEn: 'Total of all 5 dice' },
-    l4k: { kind: 'sum', titleFr: '4 PAREILS', titleEn: 'Total of all 5 dice' },
-    lss: { kind: 'fixed', values: [0,15], titleFr: 'COURTE SÉQUENCE', titleEn: 'Short straight — 15' },
-    lls: { kind: 'fixed', values: [0,20], titleFr: 'LONGUE SÉQUENCE', titleEn: 'Long straight — 20' },
-    lhr: { kind: 'sum', titleFr: 'ROULEMENT DE SURPLUS', titleEn: 'High roll — total of all 5 dice' },
-    lfh: { kind: 'fixed', values: [0,25], titleFr: 'MAIN PLEINE', titleEn: 'Full house — 25' },
-    lyum:{ kind: 'fixed', values: [0,30], titleFr: 'YUM', titleEn: '5 of a kind — 30' }
+    u1: { kind: 'fixed', values: [0,1,2,3,4,5], titleFr: 'JEU DE DÉS 1', titleEn: 'ROLL 1' },
+    u2: { kind: 'fixed', values: [0,2,4,6,8,10], titleFr: 'JEU DE DÉS 2', titleEn: 'ROLL 2' },
+    u3: { kind: 'fixed', values: [0,3,6,9,12,15], titleFr: 'JEU DE DÉS 3', titleEn: 'ROLL 3' },
+    u4: { kind: 'fixed', values: [0,4,8,12,16,20], titleFr: 'JEU DE DÉS 4', titleEn: 'ROLL 4' },
+    u5: { kind: 'fixed', values: [0,5,10,15,20,25], titleFr: 'JEU DE DÉS 5', titleEn: 'ROLL 5' },
+    u6: { kind: 'fixed', values: [0,6,12,18,24,30], titleFr: 'JEU DE DÉS 6', titleEn: 'ROLL 6' },
+    l3k: { kind: 'sum', titleFr: '3 PAREILS', titleEn: '3 OF A KIND' },
+    l4k: { kind: 'sum', titleFr: '4 PAREILS', titleEn: '4 OF A KIND' },
+    lss: { kind: 'fixed', values: [0,15], titleFr: 'COURTE SÉQUENCE', titleEn: 'SHORT STRAIGHT' },
+    lls: { kind: 'fixed', values: [0,20], titleFr: 'LONGUE SÉQUENCE', titleEn: 'LONG STRAIGHT' },
+    lhr: { kind: 'sum', titleFr: 'ROULEMENT DE SURPLUS', titleEn: 'HIGH ROLL' },
+    lfh: { kind: 'fixed', values: [0,25], titleFr: 'MAIN PLEINE', titleEn: 'FULL HOUSE' },
+    lyum:{ kind: 'fixed', values: [0,30], titleFr: 'YUM', titleEn: 'YUM — 5 OF A KIND' }
   };
 
   function sumOptions() {
@@ -683,15 +764,15 @@
     const values = opt.kind === 'sum' ? sumOptions() : opt.values;
     const currentVal = input.value;
 
+    const title = currentLang === 'en' ? opt.titleEn : opt.titleFr;
     backdrop = document.createElement('div');
     backdrop.className = 'picker-backdrop';
     backdrop.innerHTML = `
       <div class="picker" role="dialog" aria-modal="true">
         <div class="head">
-          <div class="title">${opt.titleFr}</div>
-          <div class="col">Col ${col}</div>
+          <div class="title">${title}</div>
+          <div class="col">${tr().pickerCol(col)}</div>
         </div>
-        <div class="hint">${opt.titleEn}</div>
         <div class="chips ${opt.kind === 'sum' ? 'sum' : ''}">
           ${values.map(v => {
             const isCur = currentVal !== '' && parseInt(currentVal,10) === v;
@@ -702,8 +783,8 @@
           }).join('')}
         </div>
         <div class="actions">
-          <button type="button" data-action="clear">Effacer</button>
-          <button type="button" data-action="cancel" class="primary">Annuler</button>
+          <button type="button" data-action="clear">${tr().pickerClear}</button>
+          <button type="button" data-action="cancel" class="primary">${tr().pickerCancel}</button>
         </div>
       </div>`;
     document.body.appendChild(backdrop);
@@ -795,11 +876,11 @@
     const winnerLine = document.getElementById('winnerLine');
     const anyScore = totals.some(t => t > 0);
     if (!anyScore) {
-      winnerLine.textContent = playerName ? `Bonne partie, ${playerName} !` : '';
+      winnerLine.textContent = playerName ? tr().goodGame(playerName) : '';
     } else {
       const winners = [];
       totals.forEach((t, i) => { if (t === bestTotal && t > 0) winners.push(i + 1); });
-      winnerLine.textContent = `Meilleur score : ${bestTotal} — Colonne${winners.length>1?'s':''} ${winners.join(', ')}`;
+      winnerLine.textContent = tr().bestScore(bestTotal, winners);
     }
   }
 
@@ -843,7 +924,7 @@
   });
 
   document.getElementById('newGameBtn').addEventListener('click', () => {
-    if (!confirm('Démarrer une nouvelle partie ? Tous les scores seront effacés.')) return;
+    if (!confirm(tr().newGameConfirm)) return;
     document.querySelectorAll('td.input-cell[data-cell] input').forEach(i => {
       i.value = '';
       i.closest('td').classList.remove('scratched');
@@ -854,7 +935,7 @@
   });
 
   document.getElementById('resetColBtn').addEventListener('click', () => {
-    const col = prompt('Effacer quelle colonne ? (1–6)');
+    const col = prompt(tr().clearColPrompt);
     const c = parseInt(col, 10);
     if (!c || c < 1 || c > PLAYER_COUNT) return;
     document.querySelectorAll(`td.input-cell[data-cell] input[data-col="${c}"]`).forEach(i => {
@@ -864,7 +945,15 @@
     recompute(); save();
   });
 
+  document.getElementById('langToggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-lang]');
+    if (btn) setLang(btn.dataset.lang);
+  });
+
   // Init
+  let savedLang = null;
+  try { savedLang = localStorage.getItem(LANG_KEY); } catch (e) {}
+  setLang(savedLang === 'en' ? 'en' : 'fr');
   load();
   recompute();
 })();
