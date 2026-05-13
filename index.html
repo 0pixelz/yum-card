@@ -679,7 +679,7 @@
 
     let maxHtml = '<td class="maxscore">';
     if (r.maxFr) {
-      maxHtml += `<div style="font-size:10.5px;line-height:1.1">${r.maxFr}<br><span style="font-style:italic">${r.maxEn}</span></div>`;
+      maxHtml += `<div style="font-size:10.5px;line-height:1.1"><span class="fr">${r.maxFr}</span><span class="en" style="font-style:italic">${r.maxEn}</span></div>`;
     } else {
       maxHtml += `<span style="font-size:18px;font-weight:900">${r.maxNum}</span>`;
     }
