@@ -387,6 +387,61 @@
     color: #fff;
   }
 
+  .picker.bonus-info { max-width: 380px; }
+  .picker.bonus-info .bonus-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 10px 0 4px;
+  }
+  .picker.bonus-info .bonus-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: var(--green-row);
+    border: 1.5px solid var(--green);
+    font-size: 13px;
+    color: var(--green-dark);
+  }
+  .picker.bonus-info .bonus-row .target { font-weight: 700; }
+  .picker.bonus-info .bonus-row .status { font-size: 12px; font-weight: 600; }
+  .picker.bonus-info .bonus-row.complete {
+    background: #d6ebd6;
+    border-color: #4a8a4a;
+  }
+  .picker.bonus-info .bonus-row.extra {
+    background: var(--yellow-light);
+    border-color: var(--yellow);
+  }
+  .picker.bonus-info .bonus-row.scratched {
+    background: #f6e6e6;
+    border-color: #b0473a;
+    color: #b0473a;
+  }
+  .picker.bonus-info .bonus-row.short {
+    background: #fff;
+    border-color: var(--green-dark);
+  }
+  .picker.bonus-info .summary {
+    margin-top: 8px;
+    padding: 10px;
+    background: var(--green);
+    color: #fff;
+    border-radius: 6px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .picker.bonus-info .summary.reached {
+    background: var(--yellow);
+    color: var(--green-dark);
+  }
+
+  tr.bonus td.input-cell { cursor: pointer; }
+  tr.bonus td.input-cell input { cursor: pointer; pointer-events: none; }
+
   tr.computed td.input-cell { background: #f3eedd; }
   tr.computed td.input-cell input { font-weight: 700; color: var(--green-dark); }
 
@@ -843,6 +898,90 @@
     activeInput = null;
   }
 
+  function openBonusInfo(col) {
+    closePicker();
+    const isFr = currentLang === 'fr';
+
+    const rows = [];
+    let total = 0;
+    for (let n = 1; n <= 6; n++) {
+      const el = document.getElementById(`u${n}-${col}`);
+      const raw = el ? el.value : '';
+      const parsed = raw === '' ? null : parseInt(raw, 10);
+      const played = parsed !== null && !isNaN(parsed);
+      const v = played ? parsed : 0;
+      if (played) total += v;
+      rows.push({ n, v, played, target: n * 3, diceCount: played ? Math.round(v / n) : 0 });
+    }
+
+    const need = Math.max(0, 63 - total);
+    const reached = total >= 63;
+
+    function rowStatus(r) {
+      if (!r.played) {
+        return {
+          cls: '',
+          text: isFr ? `besoin de 3 dés (${r.target} pts)` : `need 3 dice (${r.target} pts)`
+        };
+      }
+      if (r.v === 0) {
+        return { cls: 'scratched', text: isFr ? 'rayée' : 'scratched' };
+      }
+      if (r.diceCount === 3) {
+        return { cls: 'complete', text: isFr ? 'complet ✓' : 'complete ✓' };
+      }
+      if (r.diceCount > 3) {
+        const extra = r.diceCount - 3;
+        return {
+          cls: 'extra',
+          text: isFr
+            ? `+${extra} dé${extra > 1 ? 's' : ''} en plus`
+            : `+${extra} extra di${extra > 1 ? 'ce' : 'e'}`
+        };
+      }
+      const missing = 3 - r.diceCount;
+      return {
+        cls: 'short',
+        text: isFr
+          ? `manque ${missing} dé${missing > 1 ? 's' : ''} (${r.v}/${r.target})`
+          : `need ${missing} more (${r.v}/${r.target})`
+      };
+    }
+
+    const rowsHtml = rows.slice().reverse().map(r => {
+      const s = rowStatus(r);
+      return `<div class="bonus-row ${s.cls}">
+          <span class="target">3 × ${r.n} = ${r.target}</span>
+          <span class="status">${s.text}</span>
+        </div>`;
+    }).join('');
+
+    const title = isFr ? `BONI 63 — Col ${col}` : `BONUS 63 — Col ${col}`;
+    const summaryText = reached
+      ? (isFr ? `Boni atteint ! ${total}/63 · +25` : `Bonus reached! ${total}/63 · +25`)
+      : (isFr ? `Total : ${total}/63 — manque ${need} pts` : `Total: ${total}/63 — need ${need} pts`);
+
+    backdrop = document.createElement('div');
+    backdrop.className = 'picker-backdrop';
+    backdrop.innerHTML = `
+      <div class="picker bonus-info" role="dialog" aria-modal="true">
+        <div class="head">
+          <div class="title">${title}</div>
+        </div>
+        <div class="bonus-list">${rowsHtml}</div>
+        <div class="summary ${reached ? 'reached' : ''}">${summaryText}</div>
+        <div class="actions">
+          <button type="button" data-action="ok" class="primary">OK</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) { closePicker(); return; }
+      if (e.target.dataset && e.target.dataset.action === 'ok') { closePicker(); }
+    });
+  }
+
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closePicker();
   });
@@ -937,6 +1076,14 @@
     const open = (e) => { e.preventDefault(); openPicker(inp); };
     inp.addEventListener('click', open);
     inp.addEventListener('focus', open);
+  });
+  document.querySelectorAll('tr.bonus td.input-cell').forEach(td => {
+    td.addEventListener('click', () => {
+      const inp = td.querySelector('input');
+      if (!inp) return;
+      const col = parseInt(inp.dataset.col, 10);
+      if (col) openBonusInfo(col);
+    });
   });
   document.getElementById('playerName').addEventListener('input', () => {
     recompute(); save();
