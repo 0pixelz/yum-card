@@ -53,6 +53,11 @@
   let turnPanel = null;
   let turnRerollBtn = null;
   let turnKeepBtn = null;
+  // Peek state — hide the overlay so the user can read the scorecard
+  // underneath without losing the in-progress dice state.
+  let peekBtn = null;
+  let restoreBtn = null;
+  let isPeeking = false;
 
   // BoxGeometry material order: [+X, -X, +Y, -Y, +Z, -Z]
   // Standard die: opposite faces sum to 7.
@@ -386,13 +391,27 @@
     overlay.id = 'dice3dOverlay';
     overlay.innerHTML =
       '<div class="d3d-title">YAMIO</div>' +
-      '<div class="d3d-canvas-wrap"><canvas id="dice3dCanvas"></canvas></div>' +
+      '<div class="d3d-canvas-wrap">' +
+        '<canvas id="dice3dCanvas"></canvas>' +
+        '<button class="d3d-peek" type="button" id="dice3dPeek">📋 Card</button>' +
+      '</div>' +
       '<div class="d3d-status" id="dice3dStatus">Drag the dice and flick to throw</div>' +
       '<button class="d3d-cancel" id="dice3dCancel">Skip throw</button>';
     document.body.appendChild(overlay);
     canvasEl = overlay.querySelector('#dice3dCanvas');
     statusEl = overlay.querySelector('#dice3dStatus');
     cancelBtn = overlay.querySelector('#dice3dCancel');
+    peekBtn = overlay.querySelector('#dice3dPeek');
+    peekBtn.addEventListener('click', peekScorecard);
+    // Floating "back to dice" pill — lives on body so it sits above the page
+    // when the overlay is faded out.
+    restoreBtn = document.createElement('button');
+    restoreBtn.id = 'dice3dRestore';
+    restoreBtn.type = 'button';
+    restoreBtn.textContent = '🎲 Back to dice';
+    restoreBtn.style.display = 'none';
+    document.body.appendChild(restoreBtn);
+    restoreBtn.addEventListener('click', restoreFromPeek);
     cancelBtn.addEventListener('click', () => {
       if (mode === 'spectator') {
         // "Hide" the live view of an opponent's roll — purely local; the
@@ -891,6 +910,10 @@
       turnRollCount = 0;
       turnPhase = 'idle';
       turnResolve = null;
+      // Peek reset — make sure the next open isn't stuck invisible.
+      isPeeking = false;
+      if (restoreBtn) restoreBtn.style.display = 'none';
+      if (overlay) overlay.style.pointerEvents = '';
       teardownMultiDice();
       if (dieMesh) dieMesh.visible = true;
       // Restore interactive UI for the next non-spectator open.
@@ -1296,6 +1319,25 @@
       return null;
     });
   };
+
+  // Hide the dice overlay so the user can read the scorecard underneath.
+  // The 3D scene, physics world, and turn state all stay alive — opening
+  // the overlay again resumes exactly where the player left off.
+  function peekScorecard() {
+    if (!overlay || isPeeking) return;
+    isPeeking = true;
+    overlay.classList.remove('open');
+    overlay.style.pointerEvents = 'none';
+    if (restoreBtn) restoreBtn.style.display = '';
+  }
+
+  function restoreFromPeek() {
+    if (!overlay || !isPeeking) return;
+    isPeeking = false;
+    overlay.classList.add('open');
+    overlay.style.pointerEvents = '';
+    if (restoreBtn) restoreBtn.style.display = 'none';
+  }
 
   // ── Turn-mode helpers (hold + re-roll) ───────────────────────────
   function buildHoldPanel() {
