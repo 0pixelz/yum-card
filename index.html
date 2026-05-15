@@ -1310,7 +1310,7 @@
   // ---- Persistence (one storage key per sheet) ----
   function save() {
     const data = { player: document.getElementById('playerName').value, cells: {} };
-    document.querySelectorAll('td.input-cell input:not([readonly])').forEach(inp => {
+    document.querySelectorAll('td.input-cell[data-cell] input').forEach(inp => {
       if (inp.value !== '') data.cells[inp.id] = inp.value;
     });
     try { localStorage.setItem(STORAGE_KEY_PREFIX + activeSheet, JSON.stringify(data)); } catch (e) {}
