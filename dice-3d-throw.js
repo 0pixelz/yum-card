@@ -44,6 +44,16 @@
   let multiLanes = [];             // pre-computed {dx,dz} fan offsets per die
   let multiLastDragP = null;
 
+  // ── Turn mode (Yahtzee-style: roll → hold → re-roll up to 3× → keep) ──
+  const TURN_MAX_ROLLS = 3;
+  let turnHeld = [];
+  let turnRollCount = 0;
+  let turnPhase = 'idle';   // 'idle' | 'rolling' | 'choosing'
+  let turnResolve = null;
+  let turnPanel = null;
+  let turnRerollBtn = null;
+  let turnKeepBtn = null;
+
   // BoxGeometry material order: [+X, -X, +Y, -Y, +Z, -Z]
   // Standard die: opposite faces sum to 7.
   const FACE_NUMBERS = [1, 6, 2, 5, 3, 4];
@@ -392,6 +402,15 @@
         closeOverlay();
         return;
       }
+      if (mode === 'turn' && turnResolve) {
+        const r = turnResolve; turnResolve = null;
+        const results = multiDiceBodies.length
+          ? multiDiceBodies.map(topFaceFor)
+          : null;
+        closeOverlay();
+        r(results);
+        return;
+      }
       if (multiResolve) {
         const r = multiResolve; multiResolve = null;
         const n = multiDiceBodies.length || 5;
@@ -579,6 +598,7 @@
 
   function onPointerDown(ev) {
     if (mode === 'multi') return onPointerDownMulti(ev);
+    if (mode === 'turn') return onPointerDownTurn(ev);
     if (throwing) return;
     // Allow grabbing the die, OR starting a flick anywhere if pointer is below die.
     const hitsDie = hitTestDie(ev);
@@ -829,6 +849,27 @@
           r(results);
         }, 700);
       }
+    } else if (mode === 'turn' && multiThrowing) {
+      const elapsed = now - multiSettleStart;
+      const allSettled = multiDiceBodies.every((b, i) => {
+        if (turnHeld[i]) return true;
+        if (b.sleepState === CANNON.Body.SLEEPING) return true;
+        return elapsed > 900 &&
+          b.velocity.length() < 0.07 &&
+          b.angularVelocity.length() < 0.07;
+      });
+      if (allSettled || elapsed > 8500) {
+        multiThrowing = false;
+        turnPhase = 'choosing';
+        setTurnStatus();
+        if (turnPanel) {
+          turnPanel.style.display = 'flex';
+          if (turnRerollBtn) {
+            turnRerollBtn.style.display =
+              (turnRollCount >= TURN_MAX_ROLLS) ? 'none' : '';
+          }
+        }
+      }
     }
   }
 
@@ -844,6 +885,12 @@
       multiPointerSamples = [];
       multiLastDragP = null;
       multiLanes = [];
+      // Turn-mode reset
+      if (turnPanel) turnPanel.style.display = 'none';
+      turnHeld = [];
+      turnRollCount = 0;
+      turnPhase = 'idle';
+      turnResolve = null;
       teardownMultiDice();
       if (dieMesh) dieMesh.visible = true;
       // Restore interactive UI for the next non-spectator open.
@@ -1247,6 +1294,199 @@
     }).catch(e => {
       console.warn('dice3DSpectate failed', e);
       return null;
+    });
+  };
+
+  // ── Turn-mode helpers (hold + re-roll) ───────────────────────────
+  function buildHoldPanel() {
+    if (turnPanel) return;
+    turnPanel = document.createElement('div');
+    turnPanel.className = 'd3d-hold-panel';
+    turnPanel.style.display = 'none';
+    turnPanel.innerHTML =
+      '<button class="d3d-hold-btn d3d-reroll" type="button" id="d3dReroll">Re-roll</button>' +
+      '<button class="d3d-hold-btn d3d-keep" type="button" id="d3dKeep">Keep</button>';
+    overlay.insertBefore(turnPanel, cancelBtn);
+    turnRerollBtn = overlay.querySelector('#d3dReroll');
+    turnKeepBtn   = overlay.querySelector('#d3dKeep');
+    turnRerollBtn.addEventListener('click', () => {
+      if (mode !== 'turn' || turnPhase !== 'choosing') return;
+      if (turnRollCount >= TURN_MAX_ROLLS) return;
+      if (turnHeld.length && turnHeld.every(h => h)) return;
+      rerollUnheld();
+    });
+    turnKeepBtn.addEventListener('click', () => {
+      if (mode !== 'turn' || turnPhase !== 'choosing') return;
+      finishTurn();
+    });
+  }
+
+  function highlightDie(idx, held) {
+    const mesh = multiDiceMeshes[idx];
+    if (!mesh || !Array.isArray(mesh.material)) return;
+    const mats = mesh.material;
+    for (let i = 0; i < mats.length; i++) {
+      const m = mats[i];
+      if (!m || !m.emissive) continue;
+      if (held) {
+        m.emissive.setHex(0xf5a623);
+        m.emissiveIntensity = 0.6;
+      } else {
+        m.emissive.setHex(0x000000);
+        m.emissiveIntensity = 0;
+      }
+    }
+  }
+
+  function setTurnStatus() {
+    if (!statusEl) return;
+    if (turnPhase === 'rolling') {
+      statusEl.textContent = 'Rolling… (' + turnRollCount + '/' + TURN_MAX_ROLLS + ')';
+      return;
+    }
+    if (turnPhase === 'choosing') {
+      statusEl.textContent = (turnRollCount >= TURN_MAX_ROLLS)
+        ? 'Last roll — tap Keep to finish'
+        : ('Tap dice to hold · roll ' + turnRollCount + '/' + TURN_MAX_ROLLS);
+    }
+  }
+
+  function tossDieRandomly(b) {
+    b.type = CANNON.Body.DYNAMIC;
+    b.wakeUp();
+    b._spinAxis = null;
+    b.position.set(
+      (Math.random() - 0.5) * 1.6,
+      3.4 + Math.random() * 0.8,
+      DRAG_Z_MAX - 0.2 - Math.random() * 0.3
+    );
+    b.quaternion.setFromEuler(
+      Math.random() * 2, Math.random() * 2, Math.random() * 2
+    );
+    b.velocity.set(
+      (Math.random() - 0.5) * 3.5,
+      3.4 + Math.random() * 1.4,
+      -3.4 - Math.random() * 1.8
+    );
+    const spin = 18 + Math.random() * 12;
+    b.angularVelocity.set(
+      (Math.random() - 0.5) * spin,
+      (Math.random() - 0.5) * spin,
+      (Math.random() - 0.5) * spin
+    );
+  }
+
+  function rerollUnheld() {
+    turnRollCount++;
+    turnPhase = 'rolling';
+    if (turnPanel) turnPanel.style.display = 'none';
+    for (let i = 0; i < multiDiceBodies.length; i++) {
+      const b = multiDiceBodies[i];
+      if (turnHeld[i]) {
+        b.type = CANNON.Body.STATIC;
+        b.velocity.set(0, 0, 0);
+        b.angularVelocity.set(0, 0, 0);
+      } else {
+        tossDieRandomly(b);
+      }
+    }
+    multiSettleStart = performance.now();
+    multiThrowing = true;
+    setTurnStatus();
+    playThrowClatter();
+  }
+
+  function finishTurn() {
+    if (!turnResolve) return;
+    const results = multiDiceBodies.map(topFaceFor);
+    const r = turnResolve;
+    turnResolve = null;
+    closeOverlay();
+    r(results);
+  }
+
+  function onPointerDownTurn(ev) {
+    if (turnPhase !== 'choosing') return;
+    const ndc = pointerNDC(ev);
+    raycaster.setFromCamera(ndc, camera);
+    const hits = raycaster.intersectObjects(multiDiceMeshes, false);
+    if (!hits.length) return;
+    ev.preventDefault();
+    const hitMesh = hits[0].object;
+    const idx = multiDiceMeshes.indexOf(hitMesh);
+    if (idx < 0) return;
+    turnHeld[idx] = !turnHeld[idx];
+    highlightDie(idx, turnHeld[idx]);
+  }
+
+  // Yahtzee-style turn: auto-toss 5 dice, tap to hold, re-roll up to 3×, then keep.
+  // Resolves with the final 5 face values (or null if cancelled before any roll settles).
+  window.throw3DDiceTurn = function (count) {
+    const n = Math.max(1, Math.min(5, (count | 0) || 5));
+    const randomArr = () => {
+      const a = [];
+      for (let i = 0; i < n; i++) a.push(Math.floor(Math.random() * 6) + 1);
+      return a;
+    };
+    return Promise.all([ensureLibs(), ensureBrandFont()]).then(() => {
+      if (!overlay) buildOverlay();
+      if (!renderer) {
+        try { initScene(); }
+        catch (e) { console.warn('3D dice init failed', e); return randomArr(); }
+      }
+      buildHoldPanel();
+      mode = 'turn';
+      if (dieBody) { dieBody.type = CANNON.Body.STATIC; dieBody.position.set(0, -20, 0); }
+      if (dieMesh) dieMesh.visible = false;
+      setupMultiDice(n);
+      // Clone materials per die so we can highlight each one independently
+      // without bleeding the hold glow across the rest.
+      multiDiceMeshes.forEach(mesh => {
+        mesh.material = multiMats.map(m => m.clone());
+      });
+      turnHeld = new Array(n).fill(false);
+      turnRollCount = 1;
+      turnPhase = 'rolling';
+      multiReady = false;
+      multiDragging = false;
+
+      if (turnPanel) turnPanel.style.display = 'none';
+      if (cancelBtn) cancelBtn.textContent = 'Cancel';
+      setTurnStatus();
+
+      overlay.style.display = 'flex';
+      requestAnimationFrame(() => {
+        overlay.classList.add('open');
+        onResize();
+      });
+
+      if (!canvasEl._d3dBound) {
+        canvasEl._d3dBound = true;
+        canvasEl.addEventListener('pointerdown', onPointerDown);
+        canvasEl.addEventListener('pointermove', onPointerMove);
+        canvasEl.addEventListener('pointerup', onPointerUp);
+        canvasEl.addEventListener('pointercancel', onPointerUp);
+        window.addEventListener('resize', onResize);
+      }
+
+      if (!rafId) {
+        lastTime = 0;
+        rafId = requestAnimationFrame(tick);
+      }
+
+      // Brief delay so the overlay fades in before the dice fly across the screen.
+      setTimeout(() => {
+        if (mode !== 'turn') return;
+        for (const b of multiDiceBodies) tossDieRandomly(b);
+        multiSettleStart = performance.now();
+        multiThrowing = true;
+        playThrowClatter();
+      }, 350);
+
+      return new Promise(res => { turnResolve = res; });
+    }).catch(e => {
+      console.warn('throw3DDiceTurn failed, using random fallback', e);
+      return randomArr();
     });
   };
 

@@ -629,6 +629,34 @@
   #dice3dOverlay .d3d-cancel:hover {
     background: rgba(255,255,255,0.12); color: var(--white);
   }
+  #dice3dOverlay .d3d-hold-panel {
+    display: none;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 16px 0;
+  }
+  #dice3dOverlay .d3d-hold-btn {
+    padding: 10px 22px;
+    border-radius: 22px;
+    border: 1.5px solid var(--gold);
+    background: var(--gold);
+    color: var(--green-dark);
+    font-weight: 800;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    min-width: 110px;
+  }
+  #dice3dOverlay .d3d-hold-btn:active { transform: translateY(1px); }
+  #dice3dOverlay .d3d-hold-btn.d3d-reroll {
+    background: transparent;
+    color: var(--white);
+    border-color: rgba(255,255,255,0.45);
+  }
+  #dice3dOverlay .d3d-hold-btn.d3d-reroll:hover {
+    background: rgba(255,255,255,0.1);
+  }
 
   /* Toolbar roll button + result chip */
   .toolbar button.roll-btn {
@@ -1264,9 +1292,10 @@
     rollHideTimer = setTimeout(() => rollResult.classList.remove('show'), 20000);
   }
   rollBtn.addEventListener('click', () => {
-    if (typeof window.throw3DDice !== 'function') return;
+    const fn = window.throw3DDiceTurn || window.throw3DDice;
+    if (typeof fn !== 'function') return;
     rollBtn.disabled = true;
-    window.throw3DDice(5).then(values => {
+    fn(5).then(values => {
       if (Array.isArray(values) && values.length) showRollResult(values);
     }).catch(() => {}).then(() => {
       rollBtn.disabled = false;
