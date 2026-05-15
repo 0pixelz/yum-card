@@ -701,6 +701,7 @@
 
   function onPointerMove(ev) {
     if (mode === 'multi') return onPointerMoveMulti(ev);
+    if (mode === 'turn') return onPointerMoveTurn(ev);
     if (!dragging) return;
     const p = pointerOnDragPlane(ev);
     if (!p) return;
@@ -718,6 +719,7 @@
 
   function onPointerUp(ev) {
     if (mode === 'multi') return onPointerUpMulti(ev);
+    if (mode === 'turn') return onPointerUpTurn(ev);
     if (!dragging) return;
     dragging = false;
     lastDragP = null;
@@ -811,8 +813,9 @@
     if (mode === 'single' && dragging && dieBody._spinAxis) {
       spinBodyAroundAxis(dieBody, dieBody._spinAxis, dieBody._spinRate * dt);
     }
-    if (mode === 'multi' && multiDragging) {
+    if ((mode === 'multi' || mode === 'turn') && multiDragging) {
       for (let i = 0; i < multiDiceBodies.length; i++) {
+        if (turnHeld[i]) continue;
         const b = multiDiceBodies[i];
         if (b._spinAxis) spinBodyAroundAxis(b, b._spinAxis, b._spinRate * dt);
       }
@@ -1382,6 +1385,11 @@
 
   function setTurnStatus() {
     if (!statusEl) return;
+    if (turnPhase === 'ready') {
+      statusEl.textContent = 'Grab the dice and flick to throw (' +
+        turnRollCount + '/' + TURN_MAX_ROLLS + ')';
+      return;
+    }
     if (turnPhase === 'rolling') {
       statusEl.textContent = 'Rolling… (' + turnRollCount + '/' + TURN_MAX_ROLLS + ')';
       return;
@@ -1390,6 +1398,54 @@
       statusEl.textContent = (turnRollCount >= TURN_MAX_ROLLS)
         ? 'Last roll — tap Keep to finish'
         : ('Tap dice to hold · roll ' + turnRollCount + '/' + TURN_MAX_ROLLS);
+    }
+  }
+
+  // Park the dice that aren't held so the player can pick them up with a finger.
+  // Each die gets a fresh "in-hand" auto-spin axis so the orientation at release
+  // is unpredictable (no cheating by releasing softly with a chosen face up).
+  function parkUnheldForFlick() {
+    const SIZE = 0.62;
+    const HALF = SIZE / 2;
+    for (let i = 0; i < multiDiceBodies.length; i++) {
+      const b = multiDiceBodies[i];
+      if (turnHeld[i]) {
+        b.type = CANNON.Body.STATIC;
+        b.velocity.set(0, 0, 0);
+        b.angularVelocity.set(0, 0, 0);
+        continue;
+      }
+      b.type = CANNON.Body.KINEMATIC;
+      b.velocity.set(0, 0, 0);
+      b.angularVelocity.set(0, 0, 0);
+      const lane = multiLanes[i] || { dx: 0, dz: 0 };
+      b.position.set(lane.dx, HALF + 0.02, DRAG_Z_MAX - 0.2 + lane.dz);
+      b.quaternion.setFromEuler(
+        Math.random() * 0.35, Math.random() * 0.35, Math.random() * 0.35
+      );
+      const ax = Math.random() * 2 - 1;
+      const ay = Math.random() * 2 - 1;
+      const az = Math.random() * 2 - 1;
+      const al = Math.hypot(ax, ay, az) || 1;
+      b._spinAxis = { x: ax / al, y: ay / al, z: az / al };
+      b._spinRate = 9 + Math.random() * 5;
+    }
+  }
+
+  // Snap every unheld die to a small fan around the finger's drag-plane point.
+  function placeUnheldAtFinger(px, pz) {
+    const unheld = [];
+    for (let i = 0; i < multiDiceBodies.length; i++) {
+      if (!turnHeld[i]) unheld.push(i);
+    }
+    const k = unheld.length;
+    for (let j = 0; j < k; j++) {
+      const i = unheld[j];
+      const dx = (k === 1) ? 0 : (j / (k - 1) - 0.5) * 2.0;
+      const dz = (j % 2 === 0) ? 0 : 0.35;
+      const tx = clamp(px + dx, -DRAG_X_LIMIT, DRAG_X_LIMIT);
+      const tz = clamp(pz + dz, DRAG_Z_MIN, DRAG_Z_MAX);
+      multiDiceBodies[i].position.set(tx, DRAG_Y, tz);
     }
   }
 
@@ -1420,22 +1476,13 @@
 
   function rerollUnheld() {
     turnRollCount++;
-    turnPhase = 'rolling';
+    turnPhase = 'ready';
     if (turnPanel) turnPanel.style.display = 'none';
-    for (let i = 0; i < multiDiceBodies.length; i++) {
-      const b = multiDiceBodies[i];
-      if (turnHeld[i]) {
-        b.type = CANNON.Body.STATIC;
-        b.velocity.set(0, 0, 0);
-        b.angularVelocity.set(0, 0, 0);
-      } else {
-        tossDieRandomly(b);
-      }
-    }
-    multiSettleStart = performance.now();
-    multiThrowing = true;
+    parkUnheldForFlick();
+    multiThrowing = false;
+    multiReady = true;
+    multiDragging = false;
     setTurnStatus();
-    playThrowClatter();
   }
 
   function finishTurn() {
@@ -1448,17 +1495,130 @@
   }
 
   function onPointerDownTurn(ev) {
-    if (turnPhase !== 'choosing') return;
-    const ndc = pointerNDC(ev);
-    raycaster.setFromCamera(ndc, camera);
-    const hits = raycaster.intersectObjects(multiDiceMeshes, false);
-    if (!hits.length) return;
+    if (turnPhase === 'choosing') {
+      // Tap a settled die to toggle its hold glow.
+      const ndc = pointerNDC(ev);
+      raycaster.setFromCamera(ndc, camera);
+      const hits = raycaster.intersectObjects(multiDiceMeshes, false);
+      if (!hits.length) return;
+      ev.preventDefault();
+      const idx = multiDiceMeshes.indexOf(hits[0].object);
+      if (idx < 0) return;
+      turnHeld[idx] = !turnHeld[idx];
+      highlightDie(idx, turnHeld[idx]);
+      return;
+    }
+    if (turnPhase === 'ready') {
+      onPointerDownTurnFlick(ev);
+    }
+  }
+
+  function onPointerMoveTurn(ev) {
+    if (turnPhase !== 'ready' || !multiDragging) return;
+    const p = pointerOnDragPlane(ev);
+    if (!p) return;
+    if (multiLastDragP) {
+      const dx = p.x - multiLastDragP.x;
+      const dz = p.z - multiLastDragP.z;
+      for (let i = 0; i < multiDiceBodies.length; i++) {
+        if (turnHeld[i]) continue;
+        applyTumbleTo(multiDiceBodies[i], dx, dz, 7.5);
+      }
+    }
+    multiLastDragP = { x: p.x, z: p.z };
+    placeUnheldAtFinger(p.x, p.z);
+    const now = performance.now();
+    multiPointerSamples.push({ t: now, x: p.x, z: p.z });
+    while (multiPointerSamples.length > 2 && now - multiPointerSamples[0].t > 200) {
+      multiPointerSamples.shift();
+    }
+  }
+
+  function onPointerUpTurn(ev) {
+    if (!multiDragging) return;
+    multiDragging = false;
+    multiLastDragP = null;
+    try { canvasEl.releasePointerCapture(ev.pointerId); } catch (_) {}
+    const now = performance.now();
+    while (multiPointerSamples.length > 2 && now - multiPointerSamples[0].t > 120) {
+      multiPointerSamples.shift();
+    }
+    let vx = 0, vz = 0;
+    if (multiPointerSamples.length >= 2) {
+      const a = multiPointerSamples[0];
+      const b = multiPointerSamples[multiPointerSamples.length - 1];
+      const dt = Math.max(0.016, (b.t - a.t) / 1000);
+      vx = (b.x - a.x) / dt;
+      vz = (b.z - a.z) / dt;
+    }
+    const speed = Math.hypot(vx, vz);
+    const minS = 4, maxS = 22;
+    const mag = Math.max(minS, Math.min(maxS, speed * 1.3));
+    const k = (speed > 0.01) ? mag / speed : 0;
+    const VX = vx * k;
+    const VZ = vz * k;
+    const VY = 3.8 + Math.min(7, speed * 0.35);
+    for (let i = 0; i < multiDiceBodies.length; i++) {
+      if (turnHeld[i]) continue;
+      const body = multiDiceBodies[i];
+      body.type = CANNON.Body.DYNAMIC;
+      body.wakeUp();
+      body._spinAxis = null;
+      if (speed < 0.6) {
+        // Weak flick — toss with random spin so the player can't release softly with a chosen face up.
+        body.velocity.set(
+          (Math.random() - 0.5) * 2.2,
+          3.4 + Math.random() * 1.6,
+          -1.2 - Math.random() * 2.4
+        );
+        const spin = 18;
+        body.angularVelocity.set(
+          (Math.random() - 0.5) * spin,
+          (Math.random() - 0.5) * spin,
+          (Math.random() - 0.5) * spin
+        );
+      } else {
+        const jitter = 1.5;
+        body.velocity.set(
+          VX + (Math.random() - 0.5) * jitter,
+          VY + (Math.random() - 0.5) * 0.8,
+          VZ + (Math.random() - 0.5) * jitter
+        );
+        const spin = 16 + Math.min(28, speed * 2.0);
+        body.angularVelocity.set(
+          -VZ * 0.7 + (Math.random() - 0.5) * spin,
+          (Math.random() - 0.5) * spin * 0.7,
+           VX * 0.7 + (Math.random() - 0.5) * spin
+        );
+      }
+    }
+    turnPhase = 'rolling';
+    multiReady = false;
+    multiThrowing = true;
+    multiSettleStart = performance.now();
+    setTurnStatus();
+    playThrowClatter();
+  }
+
+  function onPointerDownTurnFlick(ev) {
+    if (turnPhase !== 'ready') return;
     ev.preventDefault();
-    const hitMesh = hits[0].object;
-    const idx = multiDiceMeshes.indexOf(hitMesh);
-    if (idx < 0) return;
-    turnHeld[idx] = !turnHeld[idx];
-    highlightDie(idx, turnHeld[idx]);
+    multiDragging = true;
+    multiPointerSamples = [];
+    try { canvasEl.setPointerCapture(ev.pointerId); } catch (_) {}
+    const p = pointerOnDragPlane(ev);
+    if (p) {
+      multiPointerSamples.push({ t: performance.now(), x: p.x, z: p.z });
+      multiLastDragP = { x: p.x, z: p.z };
+      // Lift unheld dice off the floor and snap them to the finger.
+      for (let i = 0; i < multiDiceBodies.length; i++) {
+        if (turnHeld[i]) continue;
+        multiDiceBodies[i].velocity.set(0, 0, 0);
+        multiDiceBodies[i].angularVelocity.set(0, 0, 0);
+      }
+      placeUnheldAtFinger(p.x, p.z);
+    }
+    statusEl.textContent = 'Spin them up — flick to throw!';
   }
 
   // Yahtzee-style turn: auto-toss 5 dice, tap to hold, re-roll up to 3×, then keep.
@@ -1488,8 +1648,11 @@
       });
       turnHeld = new Array(n).fill(false);
       turnRollCount = 1;
-      turnPhase = 'rolling';
-      multiReady = false;
+      turnPhase = 'ready';
+      // setupMultiDice already parked everything as KINEMATIC with a fresh
+      // in-hand spin axis, so the dice are ready to be grabbed and flicked.
+      multiThrowing = false;
+      multiReady = true;
       multiDragging = false;
 
       if (turnPanel) turnPanel.style.display = 'none';
@@ -1515,15 +1678,6 @@
         lastTime = 0;
         rafId = requestAnimationFrame(tick);
       }
-
-      // Brief delay so the overlay fades in before the dice fly across the screen.
-      setTimeout(() => {
-        if (mode !== 'turn') return;
-        for (const b of multiDiceBodies) tossDieRandomly(b);
-        multiSettleStart = performance.now();
-        multiThrowing = true;
-        playThrowClatter();
-      }, 350);
 
       return new Promise(res => { turnResolve = res; });
     }).catch(e => {
