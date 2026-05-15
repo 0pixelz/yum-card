@@ -114,6 +114,50 @@
     padding: 14px 12px 18px;
   }
 
+  .sheet-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    padding: 4px 0 10px;
+    border-bottom: 1px solid #d6d2bf;
+    margin-bottom: 6px;
+  }
+  .sheet-tab {
+    flex: 1;
+    max-width: 80px;
+    min-width: 0;
+    background: var(--green-row);
+    color: var(--green-dark);
+    border: 1.5px solid var(--green);
+    border-radius: 6px;
+    padding: 8px 4px;
+    font-weight: 800;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    transition: transform 0.05s, background 0.1s;
+  }
+  .sheet-tab:active { transform: translateY(1px); }
+  .sheet-tab.active {
+    background: var(--yellow);
+    border-color: var(--yellow);
+    color: var(--green-dark);
+    box-shadow: 0 2px 0 rgba(0,0,0,0.15);
+  }
+  .sheet-tab .tab-name {
+    display: block;
+    font-size: 9.5px;
+    font-weight: 700;
+    opacity: 0.75;
+    margin-top: 2px;
+    line-height: 1;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sheet-tab.active .tab-name { opacity: 1; }
+
   .header {
     display: grid;
     grid-template-columns: auto 1fr auto;
@@ -746,9 +790,21 @@
     <span class="fr">Effacer joueur</span>
     <span class="en">Clear player</span>
   </button>
+  <button id="resetAllBtn" class="ghost" type="button">
+    <span class="fr">Tout effacer</span>
+    <span class="en">Reset all</span>
+  </button>
 </div>
 
 <div class="card" id="card">
+
+  <div class="sheet-tabs" id="sheetTabs" role="tablist">
+    <button type="button" class="sheet-tab active" data-sheet="1" role="tab">1</button>
+    <button type="button" class="sheet-tab" data-sheet="2" role="tab">2</button>
+    <button type="button" class="sheet-tab" data-sheet="3" role="tab">3</button>
+    <button type="button" class="sheet-tab" data-sheet="4" role="tab">4</button>
+    <button type="button" class="sheet-tab" data-sheet="5" role="tab">5</button>
+  </div>
 
   <div class="header">
     <div class="logo">yum<span class="reg">®</span><span class="tag"><span class="fr">classique</span><span class="en">classic</span></span></div>
@@ -803,14 +859,20 @@
   'use strict';
 
   const PLAYER_COUNT = 6;
-  const STORAGE_KEY = 'yum-card-v1';
+  const SHEET_COUNT = 5;
+  const STORAGE_KEY_PREFIX = 'yum-card-v2-sheet-';
+  const ACTIVE_KEY = 'yum-card-v2-active';
+  const LEGACY_KEY = 'yum-card-v1';
   const LANG_KEY = 'yum-card-lang';
+
+  let activeSheet = 1;
 
   const T = {
     fr: {
       docTitle: 'Yum — Fiche de pointage',
-      newGameConfirm: 'Démarrer une nouvelle partie ? Tous les scores seront effacés.',
+      newGameConfirm: 'Démarrer une nouvelle partie ? Tous les scores de cette feuille seront effacés.',
       clearColPrompt: 'Effacer quelle colonne ? (1–6)',
+      resetAllConfirm: 'Réinitialiser TOUTES les feuilles ? Tous les scores seront effacés.',
       goodGame: (name) => `Bonne partie, ${name} !`,
       bestScore: (score, cols) => `Meilleur score : ${score} — Colonne${cols.length > 1 ? 's' : ''} ${cols.join(', ')}`,
       pickerClear: 'Effacer',
@@ -820,8 +882,9 @@
     },
     en: {
       docTitle: 'Yum — Score sheet',
-      newGameConfirm: 'Start a new game? All scores will be cleared.',
+      newGameConfirm: 'Start a new game? All scores on this sheet will be cleared.',
       clearColPrompt: 'Clear which column? (1–6)',
+      resetAllConfirm: 'Reset ALL sheets? All scores will be erased.',
       goodGame: (name) => `Have a good game, ${name}!`,
       bestScore: (score, cols) => `Best score: ${score} — Column${cols.length > 1 ? 's' : ''} ${cols.join(', ')}`,
       pickerClear: 'Clear',
@@ -1244,17 +1307,27 @@
     }
   }
 
-  // ---- Persistence ----
+  // ---- Persistence (one storage key per sheet) ----
   function save() {
     const data = { player: document.getElementById('playerName').value, cells: {} };
     document.querySelectorAll('td.input-cell input:not([readonly])').forEach(inp => {
       if (inp.value !== '') data.cells[inp.id] = inp.value;
     });
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+    try { localStorage.setItem(STORAGE_KEY_PREFIX + activeSheet, JSON.stringify(data)); } catch (e) {}
+    updateSheetTabs();
   }
-  function load() {
+  function clearDOMCells() {
+    document.querySelectorAll('td.input-cell[data-cell] input').forEach(i => {
+      i.value = '';
+      const td = i.closest('td');
+      if (td) td.classList.remove('scratched');
+    });
+    document.getElementById('playerName').value = '';
+  }
+  function loadSheet(n) {
+    clearDOMCells();
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(STORAGE_KEY_PREFIX + n);
       if (!raw) return;
       const data = JSON.parse(raw);
       if (data.player) document.getElementById('playerName').value = data.player;
@@ -1271,6 +1344,92 @@
         });
       }
     } catch (e) {}
+  }
+  function load() {
+    // Migrate legacy v1 single-sheet data into Sheet 1 the first time we run.
+    try {
+      const legacy = localStorage.getItem(LEGACY_KEY);
+      if (legacy && !localStorage.getItem(STORAGE_KEY_PREFIX + 1)) {
+        localStorage.setItem(STORAGE_KEY_PREFIX + 1, legacy);
+      }
+      if (legacy) localStorage.removeItem(LEGACY_KEY);
+    } catch (e) {}
+    try {
+      const a = parseInt(localStorage.getItem(ACTIVE_KEY), 10);
+      if (a >= 1 && a <= SHEET_COUNT) activeSheet = a;
+    } catch (e) {}
+    loadSheet(activeSheet);
+    updateSheetTabs();
+  }
+  function switchSheet(n) {
+    if (!n || n < 1 || n > SHEET_COUNT || n === activeSheet) return;
+    save();
+    activeSheet = n;
+    try { localStorage.setItem(ACTIVE_KEY, String(n)); } catch (e) {}
+    loadSheet(n);
+    updateSheetTabs();
+    recompute();
+  }
+  function resetAllSheets() {
+    for (let i = 1; i <= SHEET_COUNT; i++) {
+      try { localStorage.removeItem(STORAGE_KEY_PREFIX + i); } catch (e) {}
+    }
+    try { localStorage.removeItem(ACTIVE_KEY); } catch (e) {}
+    try { localStorage.removeItem(LEGACY_KEY); } catch (e) {}
+    activeSheet = 1;
+    clearDOMCells();
+    updateSheetTabs();
+    recompute();
+  }
+
+  function sheetGrandTotal(n) {
+    let cells;
+    if (n === activeSheet) {
+      cells = {};
+      document.querySelectorAll('td.input-cell input').forEach(inp => {
+        if (inp.value !== '') cells[inp.id] = inp.value;
+      });
+    } else {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_PREFIX + n);
+        cells = raw ? (JSON.parse(raw).cells || {}) : {};
+      } catch (e) { cells = {}; }
+    }
+    let best = 0;
+    for (let c = 1; c <= PLAYER_COUNT; c++) {
+      let sub = 0;
+      for (let i = 1; i <= 6; i++) {
+        const v = parseInt(cells['u' + i + '-' + c], 10);
+        if (!isNaN(v)) sub += v;
+      }
+      const bonus = sub >= 63 ? 25 : 0;
+      const upper = (sub > 0 || bonus > 0) ? sub + bonus : 0;
+      let lower = 0;
+      LOWER_ROWS.forEach(r => {
+        const v = parseInt(cells[r.id + '-' + c], 10);
+        if (!isNaN(v)) lower += v;
+      });
+      const g = upper + lower;
+      if (g > best) best = g;
+    }
+    return best;
+  }
+  function sheetPlayer(n) {
+    if (n === activeSheet) return (document.getElementById('playerName').value || '').trim();
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_PREFIX + n);
+      return raw ? ((JSON.parse(raw).player || '').trim()) : '';
+    } catch (e) { return ''; }
+  }
+  function updateSheetTabs() {
+    document.querySelectorAll('.sheet-tab').forEach(tab => {
+      const n = parseInt(tab.dataset.sheet, 10);
+      const name = sheetPlayer(n);
+      const total = sheetGrandTotal(n);
+      tab.classList.toggle('active', n === activeSheet);
+      const label = total > 0 ? (n + ' · ' + total) : String(n);
+      tab.innerHTML = label + (name ? '<span class="tab-name">' + name + '</span>' : '');
+    });
   }
 
   // ---- Input handling ----
@@ -1293,12 +1452,8 @@
 
   document.getElementById('newGameBtn').addEventListener('click', () => {
     if (!confirm(tr().newGameConfirm)) return;
-    document.querySelectorAll('td.input-cell[data-cell] input').forEach(i => {
-      i.value = '';
-      i.closest('td').classList.remove('scratched');
-    });
-    document.getElementById('playerName').value = '';
-    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    clearDOMCells();
+    try { localStorage.removeItem(STORAGE_KEY_PREFIX + activeSheet); } catch (e) {}
     recompute();
   });
 
@@ -1311,6 +1466,18 @@
       i.closest('td').classList.remove('scratched');
     });
     recompute(); save();
+  });
+
+  document.getElementById('resetAllBtn').addEventListener('click', () => {
+    if (!confirm(tr().resetAllConfirm)) return;
+    resetAllSheets();
+  });
+
+  document.getElementById('sheetTabs').addEventListener('click', (e) => {
+    const t = e.target.closest('.sheet-tab');
+    if (!t) return;
+    const n = parseInt(t.dataset.sheet, 10);
+    if (n) switchSheet(n);
   });
 
   document.getElementById('langToggle').addEventListener('click', (e) => {
