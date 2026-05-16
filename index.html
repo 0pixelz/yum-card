@@ -572,15 +572,6 @@
     background: var(--green-dark);
     border-radius: 50%;
   }
-  .die.faded {
-    background: transparent;
-    border-style: dashed;
-    opacity: 0.5;
-  }
-  .die.faded .pip {
-    opacity: 0.35;
-  }
-
   /* Bonus row dice slots */
   .picker.bonus-info .row-left {
     display: flex;
@@ -919,18 +910,16 @@
     5: [[25,25],[25,75],[50,50],[75,25],[75,75]],
     6: [[25,25],[50,25],[75,25],[25,75],[50,75],[75,75]]
   };
-  function dieHtml(n, faded) {
+  function dieHtml(n) {
     const pips = PIPS[n].map(([t,l]) =>
       `<span class="pip" style="top:${t}%;left:${l}%;transform:translate(-50%,-50%)"></span>`).join('');
-    return `<span class="die${faded ? ' faded' : ''}">${pips}</span>`;
+    return `<span class="die">${pips}</span>`;
   }
 
   function bonusDiceHtml(value, diceCount) {
-    const targetSlots = 3;
-    const totalSlots = Math.max(targetSlots, diceCount);
+    const totalSlots = Math.max(3, diceCount);
     let html = '';
-    for (let i = 0; i < diceCount; i++) html += dieHtml(value);
-    for (let i = diceCount; i < totalSlots; i++) html += dieHtml(value, true);
+    for (let i = 0; i < totalSlots; i++) html += dieHtml(value);
     return `<span class="row-dice">${html}</span>`;
   }
 
