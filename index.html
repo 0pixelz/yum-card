@@ -1395,7 +1395,7 @@
         cells = raw ? (JSON.parse(raw).cells || {}) : {};
       } catch (e) { cells = {}; }
     }
-    let best = 0;
+    let total = 0;
     for (let c = 1; c <= PLAYER_COUNT; c++) {
       let sub = 0;
       for (let i = 1; i <= 6; i++) {
@@ -1409,10 +1409,9 @@
         const v = parseInt(cells[r.id + '-' + c], 10);
         if (!isNaN(v)) lower += v;
       });
-      const g = upper + lower;
-      if (g > best) best = g;
+      total += upper + lower;
     }
-    return best;
+    return total;
   }
   function sheetPlayer(n) {
     if (n === activeSheet) return (document.getElementById('playerName').value || '').trim();
