@@ -105,6 +105,23 @@
   body.lang-fr .en { display: none !important; }
   body.lang-en .fr { display: none !important; }
 
+  /* Mode toggle reuses lang-toggle styling */
+  body.mode-yum .yahtzee-only { display: none !important; }
+  body.mode-yahtzee .yum-only { display: none !important; }
+
+  /* Yahtzee logo (red) when in Yahtzee mode */
+  .logo.yahtzee-logo {
+    background: #c8302c;
+    color: #fff;
+    font-family: "Arial Black", Arial, sans-serif;
+    font-weight: 900;
+    font-style: italic;
+    font-size: 26px;
+    letter-spacing: 1px;
+    padding: 10px 14px;
+  }
+  .logo.yahtzee-logo .reg { color: #fff; }
+
   .card {
     max-width: 980px;
     margin: 16px auto 40px;
@@ -756,13 +773,19 @@
   }
 </style>
 </head>
-<body class="lang-fr">
+<body class="lang-fr mode-yum">
 
 <div class="toolbar">
   <h1>
-    <span class="fr">Yum — Fiche de pointage</span>
-    <span class="en">Yum — Score sheet</span>
+    <span class="yum-only fr">Yum — Fiche de pointage</span>
+    <span class="yum-only en">Yum — Score sheet</span>
+    <span class="yahtzee-only fr">Yahtzee — Fiche de pointage</span>
+    <span class="yahtzee-only en">Yahtzee — Score sheet</span>
   </h1>
+  <div class="lang-toggle" id="modeToggle" role="group" aria-label="Mode">
+    <button type="button" data-mode="yum">YUM</button>
+    <button type="button" data-mode="yahtzee">YAHTZEE</button>
+  </div>
   <div class="lang-toggle" id="langToggle" role="group" aria-label="Langue / Language">
     <button type="button" data-lang="fr">FR</button>
     <button type="button" data-lang="en">EN</button>
@@ -798,7 +821,10 @@
   </div>
 
   <div class="header">
-    <div class="logo">yum<span class="reg">®</span><span class="tag"><span class="fr">classique</span><span class="en">classic</span></span></div>
+    <div class="logo" id="logoEl">
+      <span class="yum-only">yum<span class="reg">®</span><span class="tag"><span class="fr">classique</span><span class="en">classic</span></span></span>
+      <span class="yahtzee-only">YAHTZEE<span class="reg">®</span></span>
+    </div>
     <div class="title">
       <div class="fr">Fiche de pointage</div>
       <div class="en">Score sheet</div>
@@ -851,16 +877,22 @@
 
   const PLAYER_COUNT = 6;
   const SHEET_COUNT = 5;
-  const STORAGE_KEY_PREFIX = 'yum-card-v2-sheet-';
-  const ACTIVE_KEY = 'yum-card-v2-active';
   const LEGACY_KEY = 'yum-card-v1';
+  const LEGACY_V2_PREFIX = 'yum-card-v2-sheet-';
+  const LEGACY_V2_ACTIVE = 'yum-card-v2-active';
   const LANG_KEY = 'yum-card-lang';
+  const MODE_KEY = 'yum-card-mode';
 
+  let currentMode = 'yum';
   let activeSheet = 1;
+
+  function storagePrefix() { return `yum-card-${currentMode}-v2-sheet-`; }
+  function activeKey() { return `yum-card-${currentMode}-v2-active`; }
 
   const T = {
     fr: {
-      docTitle: 'Yum — Fiche de pointage',
+      docTitleYum: 'Yum — Fiche de pointage',
+      docTitleYahtzee: 'Yahtzee — Fiche de pointage',
       newGameConfirm: 'Démarrer une nouvelle partie ? Tous les scores de cette feuille seront effacés.',
       clearColPrompt: 'Effacer quelle colonne ? (1–6)',
       resetAllConfirm: 'Réinitialiser TOUTES les feuilles ? Tous les scores seront effacés.',
@@ -872,7 +904,8 @@
       htmlLang: 'fr'
     },
     en: {
-      docTitle: 'Yum — Score sheet',
+      docTitleYum: 'Yum — Score sheet',
+      docTitleYahtzee: 'Yahtzee — Score sheet',
       newGameConfirm: 'Start a new game? All scores on this sheet will be cleared.',
       clearColPrompt: 'Clear which column? (1–6)',
       resetAllConfirm: 'Reset ALL sheets? All scores will be erased.',
@@ -887,13 +920,18 @@
 
   let currentLang = 'fr';
   function tr() { return T[currentLang]; }
+  function updateDocTitle() {
+    document.title = currentMode === 'yahtzee'
+      ? T[currentLang].docTitleYahtzee
+      : T[currentLang].docTitleYum;
+  }
   function setLang(lang) {
     if (!T[lang]) return;
     currentLang = lang;
     document.body.classList.toggle('lang-fr', lang === 'fr');
     document.body.classList.toggle('lang-en', lang === 'en');
     document.documentElement.lang = T[lang].htmlLang;
-    document.title = T[lang].docTitle;
+    updateDocTitle();
     document.querySelectorAll('#langToggle button').forEach(b => {
       b.classList.toggle('active', b.dataset.lang === lang);
     });
@@ -934,102 +972,122 @@
     validate: (v) => v >= 0 && v <= n * 5 && v % n === 0
   }));
 
-  // Lower section rows
-  const LOWER_ROWS = [
-    { id: 'l3k', labelFr: 'PAREILS', labelEn: 'OF A KIND', numLeft: 3,
-      maxFr: 'TOTAL DES 5 DÉS', maxEn: 'TOTAL ALL DICE', maxNum: 30 },
-    { id: 'l4k', labelFr: 'PAREILS', labelEn: 'OF A KIND', numLeft: 4,
-      maxFr: 'TOTAL DES 5 DÉS', maxEn: 'TOTAL ALL DICE', maxNum: 30 },
-    { id: 'lss', labelFr: 'COURTE SÉQUENCE DE', labelEn: 'SHORT STRAIGHT OF', numRight: 4,
-      maxNum: 15, fixed: 15 },
-    { id: 'lls', labelFr: 'LONGUE SÉQUENCE DE', labelEn: 'LONG STRAIGHT OF', numRight: 5,
-      maxNum: 20, fixed: 20 },
-    { id: 'lhr', labelFr: 'ROULEMENT DE SURPLUS', labelEn: 'HIGH ROLL',
-      maxFr: 'TOTAL DES 5 DÉS', maxEn: 'TOTAL ALL DICE', maxNum: 30 },
-    { id: 'lfh', labelFr: 'MAIN PLEINE', labelEn: 'FULL HOUSE', maxNum: 25, fixed: 25 },
-    { id: 'lyum', labelFr: '5 PAREILS', labelEn: '5 OF A KIND', maxNum: 30, fixed: 30, yum: true }
-  ];
+  // Lower section rows — populated per mode by setMode()
+  const LOWER_ROWS_BY_MODE = {
+    yum: [
+      { id: 'l3k', labelFr: 'PAREILS', labelEn: 'OF A KIND', numLeft: 3,
+        maxFr: 'TOTAL DES 5 DÉS', maxEn: 'TOTAL ALL DICE', maxNum: 30 },
+      { id: 'l4k', labelFr: 'PAREILS', labelEn: 'OF A KIND', numLeft: 4,
+        maxFr: 'TOTAL DES 5 DÉS', maxEn: 'TOTAL ALL DICE', maxNum: 30 },
+      { id: 'lss', labelFr: 'COURTE SÉQUENCE DE', labelEn: 'SHORT STRAIGHT OF', numRight: 4,
+        maxNum: 15, fixed: 15 },
+      { id: 'lls', labelFr: 'LONGUE SÉQUENCE DE', labelEn: 'LONG STRAIGHT OF', numRight: 5,
+        maxNum: 20, fixed: 20 },
+      { id: 'lhr', labelFr: 'ROULEMENT DE SURPLUS', labelEn: 'HIGH ROLL',
+        maxFr: 'TOTAL DES 5 DÉS', maxEn: 'TOTAL ALL DICE', maxNum: 30 },
+      { id: 'lfh', labelFr: 'MAIN PLEINE', labelEn: 'FULL HOUSE', maxNum: 25, fixed: 25 },
+      { id: 'lyum', labelFr: '5 PAREILS', labelEn: '5 OF A KIND', maxNum: 30, fixed: 30, yum: true }
+    ],
+    yahtzee: [
+      { id: 'l3k', labelFr: 'PAREILS', labelEn: 'OF A KIND', numLeft: 3,
+        maxFr: 'TOTAL DES 5 DÉS', maxEn: 'TOTAL ALL DICE', maxNum: 30 },
+      { id: 'l4k', labelFr: 'PAREILS', labelEn: 'OF A KIND', numLeft: 4,
+        maxFr: 'TOTAL DES 5 DÉS', maxEn: 'TOTAL ALL DICE', maxNum: 30 },
+      { id: 'lfh', labelFr: 'MAIN PLEINE', labelEn: 'FULL HOUSE', maxNum: 25, fixed: 25 },
+      { id: 'lss', labelFr: 'PETITE SUITE', labelEn: 'SMALL STRAIGHT', maxNum: 30, fixed: 30 },
+      { id: 'lls', labelFr: 'GRANDE SUITE', labelEn: 'LARGE STRAIGHT', maxNum: 40, fixed: 40 },
+      { id: 'lyahtzee', labelFr: 'YAHTZEE', labelEn: 'YAHTZEE', maxNum: 50, fixed: 50, yahtzee: true },
+      { id: 'lchance', labelFr: 'CHANCE', labelEn: 'CHANCE',
+        maxFr: 'TOTAL DES 5 DÉS', maxEn: 'TOTAL ALL DICE', maxNum: 30 },
+      { id: 'lybonus', labelFr: 'BONUS YAHTZEE', labelEn: 'YAHTZEE BONUS',
+        maxFr: '100 PAR BONUS', maxEn: '100 PER BONUS', maxNum: 300 }
+    ]
+  };
+  let LOWER_ROWS = LOWER_ROWS_BY_MODE.yum;
 
-  // ---- Build upper table ----
   const upperBody = document.getElementById('upperBody');
-  UPPER_ROWS.forEach(r => {
-    const tr = document.createElement('tr');
-    tr.innerHTML =
-      `<td class="label"><div class="label-inner upper-label"><span class="num">${r.num}</span><span class="dice">${dieHtml(r.showDie)}</span></div></td>` +
-      `<td class="maxscore"><div class="max-inner"><span class="maxnum">${r.max}</span></div></td>` +
-      colCells(r.id);
-    upperBody.appendChild(tr);
-  });
-
-  // Subtotal upper
-  const trSub = document.createElement('tr');
-  trSub.className = 'subtotal computed';
-  trSub.innerHTML =
-    `<td class="label" colspan="2" style="text-align:center;color:#fff"><span class="fr">TOTAL PARTIEL</span><span class="en">SUB TOTAL</span></td>` +
-    colCells('uSub', true);
-  upperBody.appendChild(trSub);
-
-  // Bonus row
-  const trBonus = document.createElement('tr');
-  trBonus.className = 'bonus computed';
-  trBonus.innerHTML =
-    `<td class="label" style="background:var(--yellow)"><span class="fr" style="color:var(--green-dark);font-weight:700">BONI</span><span class="en" style="color:var(--green-dark);font-weight:700">BONUS</span></td>` +
-    `<td class="label" style="background:var(--yellow);text-align:center"><div style="font-size:11px"><span class="fr">SI 63 OU PLUS</span><span class="en">IF 63 OR OVER</span></div><div style="font-size:18px;font-weight:900;margin-top:2px">25</div></td>` +
-    colCells('uBonus', true);
-  upperBody.appendChild(trBonus);
-
-  // Upper total
-  const trUpperTotal = document.createElement('tr');
-  trUpperTotal.className = 'total computed';
-  trUpperTotal.innerHTML =
-    `<td class="label" colspan="2" style="text-align:center"><span class="fr">TOTAL · PARTIE SUPÉRIEURE</span><span class="en">OF UPPER HALF</span></td>` +
-    colCells('uTotal', true);
-  upperBody.appendChild(trUpperTotal);
-
-  // ---- Build lower table ----
   const lowerBody = document.getElementById('lowerBody');
-  LOWER_ROWS.forEach(r => {
-    const tr = document.createElement('tr');
-    let labelHtml = '<td class="label">';
-    if (r.yum) {
-      labelHtml += `<div class="label-inner"><span class="yum-word">YUM</span><div class="label-text"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div></div>`;
-    } else if (r.numLeft) {
-      labelHtml += `<div class="label-inner"><span class="num">${r.numLeft}</span><div class="label-text"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div></div>`;
-    } else if (r.numRight) {
-      labelHtml += `<div class="label-inner"><div class="label-text"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div><span class="num">${r.numRight}</span></div>`;
-    } else {
-      labelHtml += `<div class="label-inner"><div class="label-text"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div></div>`;
-    }
-    labelHtml += '</td>';
 
-    let maxHtml = '<td class="maxscore">';
-    if (r.maxFr) {
-      maxHtml += `<div class="maxlabel"><span class="fr">${r.maxFr}</span><span class="en">${r.maxEn}</span></div>`;
-    } else {
-      maxHtml += `<span class="maxnum">${r.maxNum}</span>`;
-    }
-    maxHtml += '</td>';
+  function buildUpperTable() {
+    upperBody.innerHTML = '';
+    UPPER_ROWS.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        `<td class="label"><div class="label-inner upper-label"><span class="num">${r.num}</span><span class="dice">${dieHtml(r.showDie)}</span></div></td>` +
+        `<td class="maxscore"><div class="max-inner"><span class="maxnum">${r.max}</span></div></td>` +
+        colCells(r.id);
+      upperBody.appendChild(tr);
+    });
 
-    tr.className = r.yum ? 'yum' : '';
-    tr.innerHTML = labelHtml + maxHtml + colCells(r.id);
-    lowerBody.appendChild(tr);
-  });
+    const trSub = document.createElement('tr');
+    trSub.className = 'subtotal computed';
+    trSub.innerHTML =
+      `<td class="label" colspan="2" style="text-align:center;color:#fff"><span class="fr">TOTAL PARTIEL</span><span class="en">SUB TOTAL</span></td>` +
+      colCells('uSub', true);
+    upperBody.appendChild(trSub);
 
-  // Lower total
-  const trLowerTotal = document.createElement('tr');
-  trLowerTotal.className = 'total computed';
-  trLowerTotal.innerHTML =
-    `<td class="label" colspan="2" style="text-align:center"><span class="fr">TOTAL · PARTIE INFÉRIEURE</span><span class="en">OF LOWER HALF</span></td>` +
-    colCells('lTotal', true);
-  lowerBody.appendChild(trLowerTotal);
+    const bonusVal = currentMode === 'yahtzee' ? 35 : 25;
+    const trBonus = document.createElement('tr');
+    trBonus.className = 'bonus computed';
+    trBonus.innerHTML =
+      `<td class="label" style="background:var(--yellow)"><span class="fr" style="color:var(--green-dark);font-weight:700">BONI</span><span class="en" style="color:var(--green-dark);font-weight:700">BONUS</span></td>` +
+      `<td class="label" style="background:var(--yellow);text-align:center"><div style="font-size:11px"><span class="fr">SI 63 OU PLUS</span><span class="en">IF 63 OR OVER</span></div><div style="font-size:18px;font-weight:900;margin-top:2px">${bonusVal}</div></td>` +
+      colCells('uBonus', true);
+    upperBody.appendChild(trBonus);
 
-  // Upper total carry
-  const trUpperCarry = document.createElement('tr');
-  trUpperCarry.className = 'total computed';
-  trUpperCarry.innerHTML =
-    `<td class="label" colspan="2" style="text-align:center"><span class="fr">TOTAL · PARTIE SUPÉRIEURE</span><span class="en">OF UPPER HALF</span></td>` +
-    colCells('uTotalCarry', true);
-  lowerBody.appendChild(trUpperCarry);
+    const trUpperTotal = document.createElement('tr');
+    trUpperTotal.className = 'total computed';
+    trUpperTotal.innerHTML =
+      `<td class="label" colspan="2" style="text-align:center"><span class="fr">TOTAL · PARTIE SUPÉRIEURE</span><span class="en">OF UPPER HALF</span></td>` +
+      colCells('uTotal', true);
+    upperBody.appendChild(trUpperTotal);
+  }
+
+  function buildLowerTable() {
+    lowerBody.innerHTML = '';
+    LOWER_ROWS.forEach(r => {
+      const tr = document.createElement('tr');
+      let labelHtml = '<td class="label">';
+      if (r.yum) {
+        labelHtml += `<div class="label-inner"><span class="yum-word">YUM</span><div class="label-text"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div></div>`;
+      } else if (r.yahtzee) {
+        labelHtml += `<div class="label-inner"><span class="yum-word" style="color:#c8302c">YAHTZEE</span></div>`;
+      } else if (r.numLeft) {
+        labelHtml += `<div class="label-inner"><span class="num">${r.numLeft}</span><div class="label-text"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div></div>`;
+      } else if (r.numRight) {
+        labelHtml += `<div class="label-inner"><div class="label-text"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div><span class="num">${r.numRight}</span></div>`;
+      } else {
+        labelHtml += `<div class="label-inner"><div class="label-text"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div></div>`;
+      }
+      labelHtml += '</td>';
+
+      let maxHtml = '<td class="maxscore">';
+      if (r.maxFr) {
+        maxHtml += `<div class="maxlabel"><span class="fr">${r.maxFr}</span><span class="en">${r.maxEn}</span></div>`;
+      } else {
+        maxHtml += `<span class="maxnum">${r.maxNum}</span>`;
+      }
+      maxHtml += '</td>';
+
+      tr.className = (r.yum || r.yahtzee) ? 'yum' : '';
+      tr.innerHTML = labelHtml + maxHtml + colCells(r.id);
+      lowerBody.appendChild(tr);
+    });
+
+    const trLowerTotal = document.createElement('tr');
+    trLowerTotal.className = 'total computed';
+    trLowerTotal.innerHTML =
+      `<td class="label" colspan="2" style="text-align:center"><span class="fr">TOTAL · PARTIE INFÉRIEURE</span><span class="en">OF LOWER HALF</span></td>` +
+      colCells('lTotal', true);
+    lowerBody.appendChild(trLowerTotal);
+
+    const trUpperCarry = document.createElement('tr');
+    trUpperCarry.className = 'total computed';
+    trUpperCarry.innerHTML =
+      `<td class="label" colspan="2" style="text-align:center"><span class="fr">TOTAL · PARTIE SUPÉRIEURE</span><span class="en">OF UPPER HALF</span></td>` +
+      colCells('uTotalCarry', true);
+    lowerBody.appendChild(trUpperCarry);
+  }
 
   // Build the grand total row in footer
   const grandRow = document.getElementById('grandRow');
@@ -1054,21 +1112,36 @@
   }
 
   // ---- Picker ----
-  const PICKER_OPTIONS = {
+  const UPPER_PICKER = {
     u1: { kind: 'fixed', values: [0,1,2,3,4,5], titleFr: 'JEU DE DÉS 1', titleEn: 'ROLL 1' },
     u2: { kind: 'fixed', values: [0,2,4,6,8,10], titleFr: 'JEU DE DÉS 2', titleEn: 'ROLL 2' },
     u3: { kind: 'fixed', values: [0,3,6,9,12,15], titleFr: 'JEU DE DÉS 3', titleEn: 'ROLL 3' },
     u4: { kind: 'fixed', values: [0,4,8,12,16,20], titleFr: 'JEU DE DÉS 4', titleEn: 'ROLL 4' },
     u5: { kind: 'fixed', values: [0,5,10,15,20,25], titleFr: 'JEU DE DÉS 5', titleEn: 'ROLL 5' },
-    u6: { kind: 'fixed', values: [0,6,12,18,24,30], titleFr: 'JEU DE DÉS 6', titleEn: 'ROLL 6' },
-    l3k: { kind: 'sum', titleFr: '3 PAREILS', titleEn: '3 OF A KIND' },
-    l4k: { kind: 'sum', titleFr: '4 PAREILS', titleEn: '4 OF A KIND' },
-    lss: { kind: 'fixed', values: [0,15], titleFr: 'COURTE SÉQUENCE', titleEn: 'SHORT STRAIGHT' },
-    lls: { kind: 'fixed', values: [0,20], titleFr: 'LONGUE SÉQUENCE', titleEn: 'LONG STRAIGHT' },
-    lhr: { kind: 'sum', titleFr: 'ROULEMENT DE SURPLUS', titleEn: 'HIGH ROLL' },
-    lfh: { kind: 'fixed', values: [0,25], titleFr: 'MAIN PLEINE', titleEn: 'FULL HOUSE' },
-    lyum:{ kind: 'fixed', values: [0,30], titleFr: 'YUM', titleEn: 'YUM — 5 OF A KIND' }
+    u6: { kind: 'fixed', values: [0,6,12,18,24,30], titleFr: 'JEU DE DÉS 6', titleEn: 'ROLL 6' }
   };
+  const LOWER_PICKER_BY_MODE = {
+    yum: {
+      l3k: { kind: 'sum', titleFr: '3 PAREILS', titleEn: '3 OF A KIND' },
+      l4k: { kind: 'sum', titleFr: '4 PAREILS', titleEn: '4 OF A KIND' },
+      lss: { kind: 'fixed', values: [0,15], titleFr: 'COURTE SÉQUENCE', titleEn: 'SHORT STRAIGHT' },
+      lls: { kind: 'fixed', values: [0,20], titleFr: 'LONGUE SÉQUENCE', titleEn: 'LONG STRAIGHT' },
+      lhr: { kind: 'sum', titleFr: 'ROULEMENT DE SURPLUS', titleEn: 'HIGH ROLL' },
+      lfh: { kind: 'fixed', values: [0,25], titleFr: 'MAIN PLEINE', titleEn: 'FULL HOUSE' },
+      lyum: { kind: 'fixed', values: [0,30], titleFr: 'YUM', titleEn: 'YUM — 5 OF A KIND' }
+    },
+    yahtzee: {
+      l3k: { kind: 'sum', titleFr: '3 PAREILS', titleEn: '3 OF A KIND' },
+      l4k: { kind: 'sum', titleFr: '4 PAREILS', titleEn: '4 OF A KIND' },
+      lfh: { kind: 'fixed', values: [0,25], titleFr: 'MAIN PLEINE', titleEn: 'FULL HOUSE' },
+      lss: { kind: 'fixed', values: [0,30], titleFr: 'PETITE SUITE', titleEn: 'SMALL STRAIGHT' },
+      lls: { kind: 'fixed', values: [0,40], titleFr: 'GRANDE SUITE', titleEn: 'LARGE STRAIGHT' },
+      lyahtzee: { kind: 'fixed', values: [0,50], titleFr: 'YAHTZEE', titleEn: 'YAHTZEE' },
+      lchance: { kind: 'sum', titleFr: 'CHANCE', titleEn: 'CHANCE' },
+      lybonus: { kind: 'fixed', values: [0,100,200,300,400,500,600], titleFr: 'BONUS YAHTZEE', titleEn: 'YAHTZEE BONUS' }
+    }
+  };
+  let PICKER_OPTIONS = Object.assign({}, UPPER_PICKER, LOWER_PICKER_BY_MODE.yum);
 
   function sumOptions() {
     const arr = [0];
@@ -1210,9 +1283,10 @@
         </div>`;
     }).join('');
 
+    const bonusValue = currentMode === 'yahtzee' ? 35 : 25;
     const title = isFr ? `BONI 63 — Col ${col}` : `BONUS 63 — Col ${col}`;
     const summaryText = reached
-      ? (isFr ? `Boni atteint ! ${total}/63 · +25` : `Bonus reached! ${total}/63 · +25`)
+      ? (isFr ? `Boni atteint ! ${total}/63 · +${bonusValue}` : `Bonus reached! ${total}/63 · +${bonusValue}`)
       : (isFr ? `Total : ${total}/63 — manque ${need} pts` : `Total: ${total}/63 — need ${need} pts`);
 
     backdrop = document.createElement('div');
@@ -1263,7 +1337,8 @@
       setComputed(`uSub-${c}`, sub);
 
       // Bonus
-      const bonus = sub >= 63 ? 25 : 0;
+      const bonusValue = currentMode === 'yahtzee' ? 35 : 25;
+      const bonus = sub >= 63 ? bonusValue : 0;
       setComputed(`uBonus-${c}`, bonus, sub >= 63);
 
       // Upper total
@@ -1296,13 +1371,13 @@
     }
   }
 
-  // ---- Persistence (one storage key per sheet) ----
+  // ---- Persistence (one storage key per mode × sheet) ----
   function save() {
     const data = { player: document.getElementById('playerName').value, cells: {} };
     document.querySelectorAll('td.input-cell[data-cell] input').forEach(inp => {
       if (inp.value !== '') data.cells[inp.id] = inp.value;
     });
-    try { localStorage.setItem(STORAGE_KEY_PREFIX + activeSheet, JSON.stringify(data)); } catch (e) {}
+    try { localStorage.setItem(storagePrefix() + activeSheet, JSON.stringify(data)); } catch (e) {}
     updateSheetTabs();
   }
   function clearDOMCells() {
@@ -1316,7 +1391,7 @@
   function loadSheet(n) {
     clearDOMCells();
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_PREFIX + n);
+      const raw = localStorage.getItem(storagePrefix() + n);
       if (!raw) return;
       const data = JSON.parse(raw);
       if (data.player) document.getElementById('playerName').value = data.player;
@@ -1334,17 +1409,37 @@
       }
     } catch (e) {}
   }
-  function load() {
-    // Migrate legacy v1 single-sheet data into Sheet 1 the first time we run.
+  function migrateLegacy() {
+    // v1 single-sheet → yum mode sheet 1
     try {
+      const yumPrefix = 'yum-card-yum-v2-sheet-';
       const legacy = localStorage.getItem(LEGACY_KEY);
-      if (legacy && !localStorage.getItem(STORAGE_KEY_PREFIX + 1)) {
-        localStorage.setItem(STORAGE_KEY_PREFIX + 1, legacy);
+      if (legacy && !localStorage.getItem(yumPrefix + 1)) {
+        localStorage.setItem(yumPrefix + 1, legacy);
       }
       if (legacy) localStorage.removeItem(LEGACY_KEY);
     } catch (e) {}
+    // v2 single-mode sheets → yum mode (preserve existing user data)
     try {
-      const a = parseInt(localStorage.getItem(ACTIVE_KEY), 10);
+      const yumPrefix = 'yum-card-yum-v2-sheet-';
+      for (let i = 1; i <= SHEET_COUNT; i++) {
+        const old = localStorage.getItem(LEGACY_V2_PREFIX + i);
+        if (old && !localStorage.getItem(yumPrefix + i)) {
+          localStorage.setItem(yumPrefix + i, old);
+        }
+        if (old) localStorage.removeItem(LEGACY_V2_PREFIX + i);
+      }
+      const oldActive = localStorage.getItem(LEGACY_V2_ACTIVE);
+      if (oldActive && !localStorage.getItem('yum-card-yum-v2-active')) {
+        localStorage.setItem('yum-card-yum-v2-active', oldActive);
+      }
+      if (oldActive) localStorage.removeItem(LEGACY_V2_ACTIVE);
+    } catch (e) {}
+  }
+  function loadActiveSheet() {
+    activeSheet = 1;
+    try {
+      const a = parseInt(localStorage.getItem(activeKey()), 10);
       if (a >= 1 && a <= SHEET_COUNT) activeSheet = a;
     } catch (e) {}
     loadSheet(activeSheet);
@@ -1354,17 +1449,16 @@
     if (!n || n < 1 || n > SHEET_COUNT || n === activeSheet) return;
     save();
     activeSheet = n;
-    try { localStorage.setItem(ACTIVE_KEY, String(n)); } catch (e) {}
+    try { localStorage.setItem(activeKey(), String(n)); } catch (e) {}
     loadSheet(n);
     updateSheetTabs();
     recompute();
   }
   function resetAllSheets() {
     for (let i = 1; i <= SHEET_COUNT; i++) {
-      try { localStorage.removeItem(STORAGE_KEY_PREFIX + i); } catch (e) {}
+      try { localStorage.removeItem(storagePrefix() + i); } catch (e) {}
     }
-    try { localStorage.removeItem(ACTIVE_KEY); } catch (e) {}
-    try { localStorage.removeItem(LEGACY_KEY); } catch (e) {}
+    try { localStorage.removeItem(activeKey()); } catch (e) {}
     activeSheet = 1;
     clearDOMCells();
     updateSheetTabs();
@@ -1380,10 +1474,11 @@
       });
     } else {
       try {
-        const raw = localStorage.getItem(STORAGE_KEY_PREFIX + n);
+        const raw = localStorage.getItem(storagePrefix() + n);
         cells = raw ? (JSON.parse(raw).cells || {}) : {};
       } catch (e) { cells = {}; }
     }
+    const bonusValue = currentMode === 'yahtzee' ? 35 : 25;
     let total = 0;
     for (let c = 1; c <= PLAYER_COUNT; c++) {
       let sub = 0;
@@ -1391,7 +1486,7 @@
         const v = parseInt(cells['u' + i + '-' + c], 10);
         if (!isNaN(v)) sub += v;
       }
-      const bonus = sub >= 63 ? 25 : 0;
+      const bonus = sub >= 63 ? bonusValue : 0;
       const upper = (sub > 0 || bonus > 0) ? sub + bonus : 0;
       let lower = 0;
       LOWER_ROWS.forEach(r => {
@@ -1405,7 +1500,7 @@
   function sheetPlayer(n) {
     if (n === activeSheet) return (document.getElementById('playerName').value || '').trim();
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_PREFIX + n);
+      const raw = localStorage.getItem(storagePrefix() + n);
       return raw ? ((JSON.parse(raw).player || '').trim()) : '';
     } catch (e) { return ''; }
   }
@@ -1420,20 +1515,22 @@
     });
   }
 
-  // ---- Input handling ----
-  document.querySelectorAll('td.input-cell[data-cell] input').forEach(inp => {
-    const open = (e) => { e.preventDefault(); openPicker(inp); };
-    inp.addEventListener('click', open);
-    inp.addEventListener('focus', open);
-  });
-  document.querySelectorAll('tr.bonus td.input-cell').forEach(td => {
-    td.addEventListener('click', () => {
-      const inp = td.querySelector('input');
-      if (!inp) return;
-      const col = parseInt(inp.dataset.col, 10);
-      if (col) openBonusInfo(col);
+  // ---- Input handling (re-bind after rebuild) ----
+  function attachCellHandlers() {
+    document.querySelectorAll('td.input-cell[data-cell] input').forEach(inp => {
+      const open = (e) => { e.preventDefault(); openPicker(inp); };
+      inp.addEventListener('click', open);
+      inp.addEventListener('focus', open);
     });
-  });
+    document.querySelectorAll('tr.bonus td.input-cell').forEach(td => {
+      td.addEventListener('click', () => {
+        const inp = td.querySelector('input');
+        if (!inp) return;
+        const col = parseInt(inp.dataset.col, 10);
+        if (col) openBonusInfo(col);
+      });
+    });
+  }
   document.getElementById('playerName').addEventListener('input', () => {
     recompute(); save();
   });
@@ -1441,8 +1538,9 @@
   document.getElementById('newGameBtn').addEventListener('click', () => {
     if (!confirm(tr().newGameConfirm)) return;
     clearDOMCells();
-    try { localStorage.removeItem(STORAGE_KEY_PREFIX + activeSheet); } catch (e) {}
+    try { localStorage.removeItem(storagePrefix() + activeSheet); } catch (e) {}
     recompute();
+    updateSheetTabs();
   });
 
   document.getElementById('resetColBtn').addEventListener('click', () => {
@@ -1459,6 +1557,38 @@
   document.getElementById('resetAllBtn').addEventListener('click', () => {
     if (!confirm(tr().resetAllConfirm)) return;
     resetAllSheets();
+  });
+
+  function setMode(mode) {
+    if (mode !== 'yum' && mode !== 'yahtzee') return;
+    // Save current sheet to its mode-storage before swapping
+    if (upperBody.children.length > 0) save();
+
+    currentMode = mode;
+    document.body.classList.toggle('mode-yum', mode === 'yum');
+    document.body.classList.toggle('mode-yahtzee', mode === 'yahtzee');
+    const logoEl = document.getElementById('logoEl');
+    if (logoEl) logoEl.classList.toggle('yahtzee-logo', mode === 'yahtzee');
+    document.querySelectorAll('#modeToggle button').forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === mode);
+    });
+
+    LOWER_ROWS = LOWER_ROWS_BY_MODE[mode];
+    PICKER_OPTIONS = Object.assign({}, UPPER_PICKER, LOWER_PICKER_BY_MODE[mode]);
+
+    buildUpperTable();
+    buildLowerTable();
+    attachCellHandlers();
+
+    loadActiveSheet();
+    updateDocTitle();
+    try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
+    recompute();
+  }
+
+  document.getElementById('modeToggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-mode]');
+    if (btn) setMode(btn.dataset.mode);
   });
 
   document.getElementById('sheetTabs').addEventListener('click', (e) => {
@@ -1495,11 +1625,12 @@
   });
 
   // Init
-  let savedLang = null;
+  let savedLang = null, savedMode = null;
   try { savedLang = localStorage.getItem(LANG_KEY); } catch (e) {}
+  try { savedMode = localStorage.getItem(MODE_KEY); } catch (e) {}
+  migrateLegacy();
   setLang(savedLang === 'en' ? 'en' : 'fr');
-  load();
-  recompute();
+  setMode(savedMode === 'yahtzee' ? 'yahtzee' : 'yum');
 })();
 </script>
 </body>
