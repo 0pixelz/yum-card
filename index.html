@@ -109,7 +109,7 @@
   body.mode-yum .yahtzee-only { display: none !important; }
   body.mode-yahtzee .yum-only { display: none !important; }
 
-  /* Yahtzee logo style (red), shown when in Yahtzee mode */
+  /* Yahtzee logo (red) when in Yahtzee mode */
   .logo.yahtzee-logo {
     background: #c8302c;
     color: #fff;
@@ -121,7 +121,6 @@
     padding: 10px 14px;
   }
   .logo.yahtzee-logo .reg { color: #fff; }
-  .logo.yahtzee-logo .tag { color: #fff; }
 
   .card {
     max-width: 980px;
@@ -131,6 +130,50 @@
     box-shadow: 0 10px 30px rgba(0,0,0,0.4);
     padding: 14px 12px 18px;
   }
+
+  .sheet-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    padding: 4px 0 10px;
+    border-bottom: 1px solid #d6d2bf;
+    margin-bottom: 6px;
+  }
+  .sheet-tab {
+    flex: 1;
+    max-width: 80px;
+    min-width: 0;
+    background: var(--green-row);
+    color: var(--green-dark);
+    border: 1.5px solid var(--green);
+    border-radius: 6px;
+    padding: 8px 4px;
+    font-weight: 800;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    transition: transform 0.05s, background 0.1s;
+  }
+  .sheet-tab:active { transform: translateY(1px); }
+  .sheet-tab.active {
+    background: var(--yellow);
+    border-color: var(--yellow);
+    color: var(--green-dark);
+    box-shadow: 0 2px 0 rgba(0,0,0,0.15);
+  }
+  .sheet-tab .tab-name {
+    display: block;
+    font-size: 9.5px;
+    font-weight: 700;
+    opacity: 0.75;
+    margin-top: 2px;
+    line-height: 1;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sheet-tab.active .tab-name { opacity: 1; }
 
   .header {
     display: grid;
@@ -546,15 +589,6 @@
     background: var(--green-dark);
     border-radius: 50%;
   }
-  .die.faded {
-    background: transparent;
-    border-style: dashed;
-    opacity: 0.5;
-  }
-  .die.faded .pip {
-    opacity: 0.35;
-  }
-
   /* Bonus row dice slots */
   .picker.bonus-info .row-left {
     display: flex;
@@ -647,6 +681,71 @@
   #dice3dOverlay .d3d-cancel:hover {
     background: rgba(255,255,255,0.12); color: var(--white);
   }
+  #dice3dOverlay .d3d-hold-panel {
+    display: none;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 16px 0;
+  }
+  #dice3dOverlay .d3d-hold-btn {
+    padding: 10px 22px;
+    border-radius: 22px;
+    border: 1.5px solid var(--gold);
+    background: var(--gold);
+    color: var(--green-dark);
+    font-weight: 800;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    min-width: 110px;
+  }
+  #dice3dOverlay .d3d-hold-btn:active { transform: translateY(1px); }
+  #dice3dOverlay .d3d-hold-btn.d3d-reroll {
+    background: transparent;
+    color: var(--white);
+    border-color: rgba(255,255,255,0.45);
+  }
+  #dice3dOverlay .d3d-hold-btn.d3d-reroll:hover {
+    background: rgba(255,255,255,0.1);
+  }
+  #dice3dOverlay .d3d-peek {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 5;
+    padding: 7px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.32);
+    background: rgba(0,0,0,0.4);
+    color: var(--white);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  #dice3dOverlay .d3d-peek:active { transform: translateY(1px); }
+
+  #dice3dRestore {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    z-index: 950;
+    padding: 12px 22px;
+    border-radius: 999px;
+    border: none;
+    background: var(--yellow);
+    color: var(--green-dark);
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+  }
+  #dice3dRestore:active { transform: translateX(-50%) translateY(1px); }
 
   /* Toolbar roll button + result chip */
   .toolbar button.roll-btn {
@@ -705,9 +804,21 @@
     <span class="fr">Effacer joueur</span>
     <span class="en">Clear player</span>
   </button>
+  <button id="resetAllBtn" class="ghost" type="button">
+    <span class="fr">Tout effacer</span>
+    <span class="en">Reset all</span>
+  </button>
 </div>
 
 <div class="card" id="card">
+
+  <div class="sheet-tabs" id="sheetTabs" role="tablist">
+    <button type="button" class="sheet-tab active" data-sheet="1" role="tab">1</button>
+    <button type="button" class="sheet-tab" data-sheet="2" role="tab">2</button>
+    <button type="button" class="sheet-tab" data-sheet="3" role="tab">3</button>
+    <button type="button" class="sheet-tab" data-sheet="4" role="tab">4</button>
+    <button type="button" class="sheet-tab" data-sheet="5" role="tab">5</button>
+  </div>
 
   <div class="header">
     <div class="logo" id="logoEl">
@@ -765,15 +876,26 @@
   'use strict';
 
   const PLAYER_COUNT = 6;
+  const SHEET_COUNT = 5;
+  const LEGACY_KEY = 'yum-card-v1';
+  const LEGACY_V2_PREFIX = 'yum-card-v2-sheet-';
+  const LEGACY_V2_ACTIVE = 'yum-card-v2-active';
   const LANG_KEY = 'yum-card-lang';
   const MODE_KEY = 'yum-card-mode';
+
+  let currentMode = 'yum';
+  let activeSheet = 1;
+
+  function storagePrefix() { return `yum-card-${currentMode}-v2-sheet-`; }
+  function activeKey() { return `yum-card-${currentMode}-v2-active`; }
 
   const T = {
     fr: {
       docTitleYum: 'Yum — Fiche de pointage',
       docTitleYahtzee: 'Yahtzee — Fiche de pointage',
-      newGameConfirm: 'Démarrer une nouvelle partie ? Tous les scores seront effacés.',
+      newGameConfirm: 'Démarrer une nouvelle partie ? Tous les scores de cette feuille seront effacés.',
       clearColPrompt: 'Effacer quelle colonne ? (1–6)',
+      resetAllConfirm: 'Réinitialiser TOUTES les feuilles ? Tous les scores seront effacés.',
       goodGame: (name) => `Bonne partie, ${name} !`,
       bestScore: (score, cols) => `Meilleur score : ${score} — Colonne${cols.length > 1 ? 's' : ''} ${cols.join(', ')}`,
       pickerClear: 'Effacer',
@@ -784,8 +906,9 @@
     en: {
       docTitleYum: 'Yum — Score sheet',
       docTitleYahtzee: 'Yahtzee — Score sheet',
-      newGameConfirm: 'Start a new game? All scores will be cleared.',
+      newGameConfirm: 'Start a new game? All scores on this sheet will be cleared.',
       clearColPrompt: 'Clear which column? (1–6)',
+      resetAllConfirm: 'Reset ALL sheets? All scores will be erased.',
       goodGame: (name) => `Have a good game, ${name}!`,
       bestScore: (score, cols) => `Best score: ${score} — Column${cols.length > 1 ? 's' : ''} ${cols.join(', ')}`,
       pickerClear: 'Clear',
@@ -794,9 +917,6 @@
       htmlLang: 'en'
     }
   };
-
-  let currentMode = 'yum';
-  function storageKey() { return `yum-card-${currentMode}-v1`; }
 
   let currentLang = 'fr';
   function tr() { return T[currentLang]; }
@@ -828,18 +948,16 @@
     5: [[25,25],[25,75],[50,50],[75,25],[75,75]],
     6: [[25,25],[50,25],[75,25],[25,75],[50,75],[75,75]]
   };
-  function dieHtml(n, faded) {
+  function dieHtml(n) {
     const pips = PIPS[n].map(([t,l]) =>
       `<span class="pip" style="top:${t}%;left:${l}%;transform:translate(-50%,-50%)"></span>`).join('');
-    return `<span class="die${faded ? ' faded' : ''}">${pips}</span>`;
+    return `<span class="die">${pips}</span>`;
   }
 
   function bonusDiceHtml(value, diceCount) {
-    const targetSlots = 3;
-    const totalSlots = Math.max(targetSlots, diceCount);
+    const totalSlots = Math.max(3, diceCount);
     let html = '';
-    for (let i = 0; i < diceCount; i++) html += dieHtml(value);
-    for (let i = diceCount; i < totalSlots; i++) html += dieHtml(value, true);
+    for (let i = 0; i < totalSlots; i++) html += dieHtml(value);
     return `<span class="row-dice">${html}</span>`;
   }
 
@@ -908,12 +1026,12 @@
       colCells('uSub', true);
     upperBody.appendChild(trSub);
 
-    const bonusValue = currentMode === 'yahtzee' ? 35 : 25;
+    const bonusVal = currentMode === 'yahtzee' ? 35 : 25;
     const trBonus = document.createElement('tr');
     trBonus.className = 'bonus computed';
     trBonus.innerHTML =
       `<td class="label" style="background:var(--yellow)"><span class="fr" style="color:var(--green-dark);font-weight:700">BONI</span><span class="en" style="color:var(--green-dark);font-weight:700">BONUS</span></td>` +
-      `<td class="label" style="background:var(--yellow);text-align:center"><div style="font-size:11px"><span class="fr">SI 63 OU PLUS</span><span class="en">IF 63 OR OVER</span></div><div style="font-size:18px;font-weight:900;margin-top:2px">${bonusValue}</div></td>` +
+      `<td class="label" style="background:var(--yellow);text-align:center"><div style="font-size:11px"><span class="fr">SI 63 OU PLUS</span><span class="en">IF 63 OR OVER</span></div><div style="font-size:18px;font-weight:900;margin-top:2px">${bonusVal}</div></td>` +
       colCells('uBonus', true);
     upperBody.appendChild(trBonus);
 
@@ -951,7 +1069,7 @@
       }
       maxHtml += '</td>';
 
-      tr.className = r.yum ? 'yum' : (r.yahtzee ? 'yum' : '');
+      tr.className = (r.yum || r.yahtzee) ? 'yum' : '';
       tr.innerHTML = labelHtml + maxHtml + colCells(r.id);
       lowerBody.appendChild(tr);
     });
@@ -1253,17 +1371,27 @@
     }
   }
 
-  // ---- Persistence ----
+  // ---- Persistence (one storage key per mode × sheet) ----
   function save() {
     const data = { player: document.getElementById('playerName').value, cells: {} };
-    document.querySelectorAll('td.input-cell input:not([readonly])').forEach(inp => {
+    document.querySelectorAll('td.input-cell[data-cell] input').forEach(inp => {
       if (inp.value !== '') data.cells[inp.id] = inp.value;
     });
-    try { localStorage.setItem(storageKey(), JSON.stringify(data)); } catch (e) {}
+    try { localStorage.setItem(storagePrefix() + activeSheet, JSON.stringify(data)); } catch (e) {}
+    updateSheetTabs();
   }
-  function load() {
+  function clearDOMCells() {
+    document.querySelectorAll('td.input-cell[data-cell] input').forEach(i => {
+      i.value = '';
+      const td = i.closest('td');
+      if (td) td.classList.remove('scratched');
+    });
+    document.getElementById('playerName').value = '';
+  }
+  function loadSheet(n) {
+    clearDOMCells();
     try {
-      const raw = localStorage.getItem(storageKey());
+      const raw = localStorage.getItem(storagePrefix() + n);
       if (!raw) return;
       const data = JSON.parse(raw);
       if (data.player) document.getElementById('playerName').value = data.player;
@@ -1280,6 +1408,111 @@
         });
       }
     } catch (e) {}
+  }
+  function migrateLegacy() {
+    // v1 single-sheet → yum mode sheet 1
+    try {
+      const yumPrefix = 'yum-card-yum-v2-sheet-';
+      const legacy = localStorage.getItem(LEGACY_KEY);
+      if (legacy && !localStorage.getItem(yumPrefix + 1)) {
+        localStorage.setItem(yumPrefix + 1, legacy);
+      }
+      if (legacy) localStorage.removeItem(LEGACY_KEY);
+    } catch (e) {}
+    // v2 single-mode sheets → yum mode (preserve existing user data)
+    try {
+      const yumPrefix = 'yum-card-yum-v2-sheet-';
+      for (let i = 1; i <= SHEET_COUNT; i++) {
+        const old = localStorage.getItem(LEGACY_V2_PREFIX + i);
+        if (old && !localStorage.getItem(yumPrefix + i)) {
+          localStorage.setItem(yumPrefix + i, old);
+        }
+        if (old) localStorage.removeItem(LEGACY_V2_PREFIX + i);
+      }
+      const oldActive = localStorage.getItem(LEGACY_V2_ACTIVE);
+      if (oldActive && !localStorage.getItem('yum-card-yum-v2-active')) {
+        localStorage.setItem('yum-card-yum-v2-active', oldActive);
+      }
+      if (oldActive) localStorage.removeItem(LEGACY_V2_ACTIVE);
+    } catch (e) {}
+  }
+  function loadActiveSheet() {
+    activeSheet = 1;
+    try {
+      const a = parseInt(localStorage.getItem(activeKey()), 10);
+      if (a >= 1 && a <= SHEET_COUNT) activeSheet = a;
+    } catch (e) {}
+    loadSheet(activeSheet);
+    updateSheetTabs();
+  }
+  function switchSheet(n) {
+    if (!n || n < 1 || n > SHEET_COUNT || n === activeSheet) return;
+    save();
+    activeSheet = n;
+    try { localStorage.setItem(activeKey(), String(n)); } catch (e) {}
+    loadSheet(n);
+    updateSheetTabs();
+    recompute();
+  }
+  function resetAllSheets() {
+    for (let i = 1; i <= SHEET_COUNT; i++) {
+      try { localStorage.removeItem(storagePrefix() + i); } catch (e) {}
+    }
+    try { localStorage.removeItem(activeKey()); } catch (e) {}
+    activeSheet = 1;
+    clearDOMCells();
+    updateSheetTabs();
+    recompute();
+  }
+
+  function sheetGrandTotal(n) {
+    let cells;
+    if (n === activeSheet) {
+      cells = {};
+      document.querySelectorAll('td.input-cell input').forEach(inp => {
+        if (inp.value !== '') cells[inp.id] = inp.value;
+      });
+    } else {
+      try {
+        const raw = localStorage.getItem(storagePrefix() + n);
+        cells = raw ? (JSON.parse(raw).cells || {}) : {};
+      } catch (e) { cells = {}; }
+    }
+    const bonusValue = currentMode === 'yahtzee' ? 35 : 25;
+    let total = 0;
+    for (let c = 1; c <= PLAYER_COUNT; c++) {
+      let sub = 0;
+      for (let i = 1; i <= 6; i++) {
+        const v = parseInt(cells['u' + i + '-' + c], 10);
+        if (!isNaN(v)) sub += v;
+      }
+      const bonus = sub >= 63 ? bonusValue : 0;
+      const upper = (sub > 0 || bonus > 0) ? sub + bonus : 0;
+      let lower = 0;
+      LOWER_ROWS.forEach(r => {
+        const v = parseInt(cells[r.id + '-' + c], 10);
+        if (!isNaN(v)) lower += v;
+      });
+      total += upper + lower;
+    }
+    return total;
+  }
+  function sheetPlayer(n) {
+    if (n === activeSheet) return (document.getElementById('playerName').value || '').trim();
+    try {
+      const raw = localStorage.getItem(storagePrefix() + n);
+      return raw ? ((JSON.parse(raw).player || '').trim()) : '';
+    } catch (e) { return ''; }
+  }
+  function updateSheetTabs() {
+    document.querySelectorAll('.sheet-tab').forEach(tab => {
+      const n = parseInt(tab.dataset.sheet, 10);
+      const name = sheetPlayer(n);
+      const total = sheetGrandTotal(n);
+      tab.classList.toggle('active', n === activeSheet);
+      const label = total > 0 ? (n + ' · ' + total) : String(n);
+      tab.innerHTML = label + (name ? '<span class="tab-name">' + name + '</span>' : '');
+    });
   }
 
   // ---- Input handling (re-bind after rebuild) ----
@@ -1304,13 +1537,10 @@
 
   document.getElementById('newGameBtn').addEventListener('click', () => {
     if (!confirm(tr().newGameConfirm)) return;
-    document.querySelectorAll('td.input-cell[data-cell] input').forEach(i => {
-      i.value = '';
-      i.closest('td').classList.remove('scratched');
-    });
-    document.getElementById('playerName').value = '';
-    try { localStorage.removeItem(storageKey()); } catch (e) {}
+    clearDOMCells();
+    try { localStorage.removeItem(storagePrefix() + activeSheet); } catch (e) {}
     recompute();
+    updateSheetTabs();
   });
 
   document.getElementById('resetColBtn').addEventListener('click', () => {
@@ -1324,13 +1554,16 @@
     recompute(); save();
   });
 
-  document.getElementById('langToggle').addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-lang]');
-    if (btn) setLang(btn.dataset.lang);
+  document.getElementById('resetAllBtn').addEventListener('click', () => {
+    if (!confirm(tr().resetAllConfirm)) return;
+    resetAllSheets();
   });
 
   function setMode(mode) {
     if (mode !== 'yum' && mode !== 'yahtzee') return;
+    // Save current sheet to its mode-storage before swapping
+    if (upperBody.children.length > 0) save();
+
     currentMode = mode;
     document.body.classList.toggle('mode-yum', mode === 'yum');
     document.body.classList.toggle('mode-yahtzee', mode === 'yahtzee');
@@ -1343,22 +1576,11 @@
     LOWER_ROWS = LOWER_ROWS_BY_MODE[mode];
     PICKER_OPTIONS = Object.assign({}, UPPER_PICKER, LOWER_PICKER_BY_MODE[mode]);
 
-    // Preserve player name across mode switches; per-mode cells are reloaded below
-    const currentPlayer = document.getElementById('playerName').value;
-
     buildUpperTable();
     buildLowerTable();
     attachCellHandlers();
 
-    // Clear inputs (new mode = blank slate before loading saved state)
-    document.querySelectorAll('td.input-cell[data-cell] input').forEach(i => {
-      i.value = '';
-      const td = i.closest('td');
-      if (td) td.classList.remove('scratched');
-    });
-    document.getElementById('playerName').value = currentPlayer;
-
-    load();
+    loadActiveSheet();
     updateDocTitle();
     try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
     recompute();
@@ -1367,6 +1589,18 @@
   document.getElementById('modeToggle').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-mode]');
     if (btn) setMode(btn.dataset.mode);
+  });
+
+  document.getElementById('sheetTabs').addEventListener('click', (e) => {
+    const t = e.target.closest('.sheet-tab');
+    if (!t) return;
+    const n = parseInt(t.dataset.sheet, 10);
+    if (n) switchSheet(n);
+  });
+
+  document.getElementById('langToggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-lang]');
+    if (btn) setLang(btn.dataset.lang);
   });
 
   // ---- 3D dice roll ----
@@ -1380,9 +1614,10 @@
     rollHideTimer = setTimeout(() => rollResult.classList.remove('show'), 20000);
   }
   rollBtn.addEventListener('click', () => {
-    if (typeof window.throw3DDice !== 'function') return;
+    const fn = window.throw3DDiceTurn || window.throw3DDice;
+    if (typeof fn !== 'function') return;
     rollBtn.disabled = true;
-    window.throw3DDice(5).then(values => {
+    fn(5).then(values => {
       if (Array.isArray(values) && values.length) showRollResult(values);
     }).catch(() => {}).then(() => {
       rollBtn.disabled = false;
@@ -1393,6 +1628,7 @@
   let savedLang = null, savedMode = null;
   try { savedLang = localStorage.getItem(LANG_KEY); } catch (e) {}
   try { savedMode = localStorage.getItem(MODE_KEY); } catch (e) {}
+  migrateLegacy();
   setLang(savedLang === 'en' ? 'en' : 'fr');
   setMode(savedMode === 'yahtzee' ? 'yahtzee' : 'yum');
 })();
