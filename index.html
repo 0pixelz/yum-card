@@ -513,6 +513,9 @@
 
   tr.bonus td.input-cell { cursor: pointer; }
   tr.bonus td.input-cell input { cursor: pointer; pointer-events: none; }
+  /* Upper-bonus progress: points still needed for the 63 bonus vs bonus earned */
+  tr.bonus td.input-cell input.bonus-need { color: #c8302c; font-weight: 800; font-size: 12px; }
+  tr.bonus td.input-cell input.bonus-got { color: var(--green-dark); font-weight: 800; }
 
   tr.computed td.input-cell { background: #f3eedd; }
   tr.computed td.input-cell input { font-weight: 700; color: var(--green-dark); }
@@ -1337,10 +1340,27 @@
       for (let n = 1; n <= 6; n++) sub += getNum(`u${n}-${c}`);
       setComputed(`uSub-${c}`, sub);
 
-      // Bonus
+      // Bonus — always show how many points are still needed to reach 63.
       const bonusValue = currentMode === 'yahtzee' ? 35 : 25;
       const bonus = sub >= 63 ? bonusValue : 0;
-      setComputed(`uBonus-${c}`, bonus, sub >= 63);
+      const bonusEl = document.getElementById(`uBonus-${c}`);
+      let upperPlayed = 0;
+      for (let n = 1; n <= 6; n++) {
+        const uEl = document.getElementById(`u${n}-${c}`);
+        if (uEl && uEl.value !== '') upperPlayed++;
+      }
+      if (bonusEl) {
+        bonusEl.classList.remove('bonus-need', 'bonus-got');
+        if (sub >= 63) {
+          bonusEl.value = String(bonusValue);
+          bonusEl.classList.add('bonus-got');
+        } else if (upperPlayed > 0) {
+          bonusEl.value = '▲' + (63 - sub);   // points still needed for the 63 bonus
+          bonusEl.classList.add('bonus-need');
+        } else {
+          bonusEl.value = '';
+        }
+      }
 
       // Upper total
       const upperTotal = sub > 0 || bonus > 0 ? sub + bonus : 0;

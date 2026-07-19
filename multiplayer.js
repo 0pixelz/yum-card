@@ -77,7 +77,6 @@
   var promoteTimer = null;
   var offerWaitTimer = null;
 
-  var myColumn = 1;                   // which sheet column represents "me"
   var lastPushSig = null;
   var lastPushAt = 0;
   var pushQueued = false;
@@ -140,29 +139,43 @@
     yum: ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'l3k', 'l4k', 'lss', 'lls', 'lhr', 'lfh', 'lyum'],
     yahtzee: ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'l3k', 'l4k', 'lfh', 'lss', 'lls', 'lyahtzee', 'lchance']
   };
+  // Whole-sheet read: the score is the sum of ALL 6 columns (this matches the
+  // total yum-card itself shows on the sheet tabs), and `cells` carries every
+  // editable entry across all columns keyed by its input id ("u1-1", "l3k-4", …)
+  // so the opponent can mirror the full six-column sheet.
   function readMyScore() {
-    var c = myColumn;
-    var grand = intOf($('grand-' + c));
-    var upper = intOf($('uTotal-' + c));
-    var lower = intOf($('lTotal-' + c));
+    var grand = 0, upper = 0, lower = 0;
+    var grands = [];
+    for (var c = 1; c <= 6; c++) {
+      var g = intOf($('grand-' + c));
+      grand += g; upper += intOf($('uTotal-' + c)); lower += intOf($('lTotal-' + c));
+      grands.push(g);
+    }
     var cells = {};
-    var inputs = document.querySelectorAll('td.input-cell[data-cell] input[data-col="' + c + '"]');
+    var inputs = document.querySelectorAll('td.input-cell[data-cell] input');
     for (var i = 0; i < inputs.length; i++) {
       var inp = inputs[i];
       if (inp.value !== '') {
         var v = parseInt(inp.value, 10);
-        cells[inp.dataset.row] = isNaN(v) ? 0 : v;
+        cells[inp.id] = isNaN(v) ? 0 : v;   // key includes the column, e.g. "u6-3"
       }
     }
+    // "Complete" = every required category filled in every one of the 6 columns.
     var req = REQUIRED[currentMode()] || REQUIRED.yum;
-    var allFilled = req.every(function (r) { return cells.hasOwnProperty(r); });
-    return { grand: grand, upper: upper, lower: lower, cells: cells, allFilled: allFilled };
+    var allFilled = true;
+    for (var cc = 1; cc <= 6 && allFilled; cc++) {
+      for (var r = 0; r < req.length; r++) {
+        if (!cells.hasOwnProperty(req[r] + '-' + cc)) { allFilled = false; break; }
+      }
+    }
+    return { grand: grand, upper: upper, lower: lower, grands: grands, cells: cells, allFilled: allFilled };
   }
-  // Clear the local player's own column and persist it, without reaching into
-  // the game IIFE: blank the editable cells, then poke #playerName's input
-  // listener (recompute + save) so totals and localStorage update.
+  // Clear the local player's WHOLE sheet (all columns) and persist it, without
+  // reaching into the game IIFE: blank the editable cells, then poke
+  // #playerName's input listener (recompute + save) so totals and localStorage
+  // update. Used by the rematch flow.
   function resetMyColumn() {
-    var inputs = document.querySelectorAll('td.input-cell[data-cell] input[data-col="' + myColumn + '"]');
+    var inputs = document.querySelectorAll('td.input-cell[data-cell] input');
     for (var i = 0; i < inputs.length; i++) {
       inputs[i].value = '';
       var td = inputs[i].closest('td');
@@ -286,11 +299,20 @@
       '.mp-diff{text-align:center;font-size:12.5px;font-weight:700;color:#5a6b64;margin-top:10px;min-height:16px}',
       '.mp-details{margin-top:12px;border-top:1px solid #e2e9e4;padding-top:8px;display:none}',
       '.mp-details.show{display:block}',
-      '.mp-details table{width:100%;border-collapse:collapse;font-size:12px}',
-      '.mp-details td{padding:3px 4px;border-bottom:1px solid #eef2ef;color:#33443d}',
-      '.mp-details td.lbl{color:#6a776f}',
-      '.mp-details td.v{text-align:right;font-weight:700;width:44px}',
-      '.mp-details td.vo{text-align:right;font-weight:700;width:44px;color:var(--green,#2f6a5a)}',
+      // opponent full-sheet mirror (6 columns)
+      '.mp-sheet-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid #e2e9e4;border-radius:10px}',
+      '.mp-mini{border-collapse:collapse;font-size:12px;width:100%;min-width:320px}',
+      '.mp-mini th,.mp-mini td{padding:5px 4px;text-align:center;border-bottom:1px solid #eef2ef;border-right:1px solid #f0f4f1;color:#33443d;min-width:30px}',
+      '.mp-mini thead th{background:var(--green,#2f6a5a);color:#fff;font-weight:800;position:sticky;top:0}',
+      '.mp-mini th.cat,.mp-mini td.cat{text-align:left;font-weight:700;color:#5a6b64;white-space:nowrap;position:sticky;left:0;background:var(--paper,#fbfaf3);min-width:78px;box-shadow:1px 0 0 #e2e9e4}',
+      '.mp-mini thead th.cat{background:var(--green,#2f6a5a)}',
+      '.mp-mini tr.sum td{background:var(--yellow-light,#fbe9a8);font-weight:700}',
+      '.mp-mini tr.sum td.cat{background:var(--yellow-light,#fbe9a8);color:var(--green-dark,#235244)}',
+      '.mp-mini tr.grand td{background:var(--green-row,#d8e8e0);font-weight:900;color:var(--green-dark,#235244)}',
+      '.mp-mini tr.grand td.cat{background:var(--green-row,#d8e8e0)}',
+      '.mp-mini .sx{color:#c05a52;font-weight:800}',
+      '.mp-sheet-cap{text-align:center;font-size:12px;font-weight:800;color:var(--green-dark,#235244);margin-top:6px}',
+      '.mp-sheet-empty{text-align:center;color:#7a877f;font-size:12.5px;padding:10px}',
       '.mp-toggle{background:none;border:none;color:var(--green,#2f6a5a);font-weight:800;font-size:12.5px;cursor:pointer;margin-top:8px;padding:4px}',
       '.mp-status{font-size:12.5px;color:#5a6b64;text-align:center;margin:8px 0 2px;min-height:16px}'
     ].join('\n');
@@ -338,36 +360,23 @@
     var s = $('mpSheet');
     if (!s) return;
     myName = nameFromSheet();
-    var cols = '';
-    for (var c = 1; c <= 6; c++) {
-      cols += '<button type="button" data-col="' + c + '"' + (c === myColumn ? ' class="on"' : '') + '>' + c + '</button>';
-    }
     s.innerHTML =
       '<h2>' + T('Jouer en ligne', 'Play online') +
         '<button class="mp-close" id="mpCloseBtn" aria-label="Close">×</button></h2>' +
-      '<p class="mp-sub">' + T('Affronte un adversaire et voyez vos scores en direct.',
-                               'Race an opponent and watch each other\'s score live.') + '</p>' +
+      '<p class="mp-sub">' + T('Affronte un adversaire et voyez vos feuilles en direct.',
+                               'Race an opponent and watch each other\'s sheet live.') + '</p>' +
       '<div class="mp-field"><label>' + T('Ton nom', 'Your name') + '</label>' +
         '<div class="mp-row"><input id="mpName" type="text" maxlength="14" value="' + esc(myName) + '" placeholder="' + T('Joueur', 'Player') + '"></div></div>' +
-      '<div class="mp-field"><label>' + T('Ta colonne sur la feuille', 'Your column on the sheet') + '</label>' +
-        '<div class="mp-colsel" id="mpColSel">' + cols + '</div></div>' +
       '<button class="mp-btn primary" id="mpFindBtn">🔎 ' + T('Trouver un adversaire', 'Find a match') + '</button>' +
       '<div class="mp-divider">' + T('OU', 'OR') + '</div>' +
       '<button class="mp-btn accent" id="mpCreateBtn">➕ ' + T('Créer un code d\'ami', 'Create a friend code') + '</button>' +
       '<div class="mp-row"><input id="mpCodeInput" type="text" maxlength="5" placeholder="' + T('CODE', 'CODE') + '" autocomplete="off">' +
         '<button class="mp-btn ghost" id="mpJoinBtn" style="width:auto;margin-top:0;padding:12px 16px">' + T('Rejoindre', 'Join') + '</button></div>' +
       '<div class="mp-err" id="mpErr"></div>' +
-      '<p class="mp-note">' + T('Astuce : chaque joueur remplit sa propre feuille. Ton total et celui de l\'adversaire se mettent à jour en direct.',
-                                'Tip: each player fills their own sheet. Your total and your opponent\'s update live.') + '</p>';
+      '<p class="mp-note">' + T('Astuce : chaque joueur remplit sa propre feuille (6 colonnes). Le total, c\'est la somme des 6 colonnes, comme sur la fiche. Tu peux voir la feuille complète de l\'adversaire en direct.',
+                                'Tip: each player fills their own sheet (6 columns). Your score is the sum of all 6 columns, like on the sheet. You can watch your opponent\'s full sheet live.') + '</p>';
 
     $('mpCloseBtn').addEventListener('click', closePanel);
-    $('mpColSel').addEventListener('click', function (e) {
-      var b = e.target.closest('button[data-col]');
-      if (!b) return;
-      myColumn = parseInt(b.dataset.col, 10) || 1;
-      Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) { x.classList.remove('on'); });
-      b.classList.add('on');
-    });
     $('mpName').addEventListener('input', function () { myName = this.value.trim() || T('Joueur', 'Player'); });
     $('mpFindBtn').addEventListener('click', function () { startFind(); });
     $('mpCreateBtn').addEventListener('click', function () { startCreateCode(); });
@@ -434,7 +443,7 @@
       '<div class="mp-status" id="mpMatchStatus"></div>' +
       '<div class="mp-vs" id="mpVs"></div>' +
       '<div class="mp-diff" id="mpDiff"></div>' +
-      '<button class="mp-toggle" id="mpDetailsToggle">' + T('Voir le détail par catégorie', 'Show category detail') + '</button>' +
+      '<button class="mp-toggle" id="mpDetailsToggle">' + T('Voir la feuille de l\'adversaire (6 colonnes)', 'Show opponent\'s full sheet (6 columns)') + '</button>' +
       '<div class="mp-details" id="mpDetails"></div>' +
       '<button class="mp-btn primary" id="mpRematchBtn" style="display:none"></button>' +
       '<button class="mp-btn accent" id="mpDoneBtn"></button>' +
@@ -445,8 +454,8 @@
       detailsOpen = !detailsOpen;
       $('mpDetails').classList.toggle('show', detailsOpen);
       this.textContent = detailsOpen
-        ? T('Masquer le détail', 'Hide detail')
-        : T('Voir le détail par catégorie', 'Show category detail');
+        ? T('Masquer la feuille', 'Hide sheet')
+        : T('Voir la feuille de l\'adversaire (6 colonnes)', 'Show opponent\'s full sheet (6 columns)');
       paintScoreboard();
     });
     $('mpRematchBtn').addEventListener('click', function () { requestRematch(); });
@@ -570,25 +579,62 @@
     if (detailsOpen) paintDetails(me, opp);
   }
 
+  // Row order per mode for the full-sheet mirror (upper 1s–6s, then lower rows).
+  var LOWER_ORDER = {
+    yum: ['l3k', 'l4k', 'lss', 'lls', 'lhr', 'lfh', 'lyum'],
+    yahtzee: ['l3k', 'l4k', 'lfh', 'lss', 'lls', 'lyahtzee', 'lchance', 'lybonus']
+  };
+  // Recompute a single column's totals from a whole-sheet cells map, mirroring
+  // yum-card's own scoring (upper bonus at 63; 25 for Yum, 35 for Yahtzee).
+  function colTotals(cells, c, m) {
+    var sub = 0;
+    for (var n = 1; n <= 6; n++) { var v = cells['u' + n + '-' + c]; if (typeof v === 'number') sub += v; }
+    var bonus = sub >= 63 ? (m === 'yahtzee' ? 35 : 25) : 0;
+    var upper = (sub > 0 || bonus > 0) ? sub + bonus : 0;
+    var lower = 0;
+    LOWER_ORDER[m].forEach(function (rid) { var v = cells[rid + '-' + c]; if (typeof v === 'number') lower += v; });
+    return { sub: sub, bonus: bonus, upper: upper, lower: lower, grand: upper + lower };
+  }
+  // Render the opponent's ENTIRE six-column sheet as a compact, scrollable grid.
   function paintDetails(me, opp) {
     var box = $('mpDetails');
     if (!box) return;
+    if (!opp) { box.innerHTML = '<div class="mp-sheet-empty">' + T('En attente de l\'adversaire…', 'Waiting for opponent…') + '</div>'; return; }
     var m = currentMode();
-    var order = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6'];
-    if (m === 'yahtzee') order = order.concat(['l3k', 'l4k', 'lfh', 'lss', 'lls', 'lyahtzee', 'lchance', 'lybonus']);
-    else order = order.concat(['l3k', 'l4k', 'lss', 'lls', 'lhr', 'lfh', 'lyum']);
-    var oc = (opp && opp.cells) || {};
-    var rows = order.map(function (rid) {
-      var mv = me.cells.hasOwnProperty(rid) ? me.cells[rid] : '';
-      var ov = oc.hasOwnProperty(rid) ? oc[rid] : '';
-      return '<tr><td class="v">' + (mv === '' ? '·' : mv) + '</td>' +
-             '<td class="lbl">' + esc(labelFor(rid, m)) + '</td>' +
-             '<td class="vo">' + (ov === '' ? '·' : ov) + '</td></tr>';
-    }).join('');
-    box.innerHTML =
-      '<table><thead><tr><td class="v" style="color:#6a776f">' + T('Toi', 'You') + '</td><td></td>' +
-      '<td class="vo">' + esc((opp && opp.name) || T('Adv.', 'Opp')) + '</td></tr></thead><tbody>' +
-      rows + '</tbody></table>';
+    var cells = opp.cells || {};
+    var upperRows = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6'];
+    var lowerRows = LOWER_ORDER[m];
+
+    function headCells() {
+      var h = '<th class="cat"></th>';
+      for (var c = 1; c <= 6; c++) h += '<th>' + c + '</th>';
+      return h;
+    }
+    function cellVal(rid, c) {
+      var v = cells[rid + '-' + c];
+      if (v === undefined) return '';
+      return v === 0 ? '<span class="sx">✗</span>' : v;
+    }
+    function bodyRow(rid) {
+      var tds = '';
+      for (var c = 1; c <= 6; c++) tds += '<td>' + cellVal(rid, c) + '</td>';
+      return '<tr><td class="cat">' + esc(labelFor(rid, m)) + '</td>' + tds + '</tr>';
+    }
+    function computedRow(label, pick, cls) {
+      var tds = '';
+      for (var c = 1; c <= 6; c++) { var t = colTotals(cells, c, m); tds += '<td>' + (pick(t) || '') + '</td>'; }
+      return '<tr class="' + cls + '"><td class="cat">' + label + '</td>' + tds + '</tr>';
+    }
+
+    var html = '<div class="mp-sheet-scroll"><table class="mp-mini"><thead><tr>' + headCells() + '</tr></thead><tbody>';
+    upperRows.forEach(function (rid) { html += bodyRow(rid); });
+    html += computedRow(T('Boni', 'Bonus'), function (t) { return t.bonus; }, 'sum');
+    lowerRows.forEach(function (rid) { html += bodyRow(rid); });
+    html += computedRow(T('TOTAL', 'TOTAL'), function (t) { return t.grand; }, 'grand');
+    html += '</tbody></table></div>' +
+      '<div class="mp-sheet-cap">' + esc(opp.name || T('Adversaire', 'Opponent')) +
+      ' — ' + T('total', 'total') + ' ' + (opp.grand || 0) + '</div>';
+    box.innerHTML = html;
   }
 
   // ── Score sync ──────────────────────────────────────────────────────────────
@@ -612,7 +658,7 @@
     lastPushSig = sig;
     lastPushAt = now();
     var cellsStr = JSON.stringify(sc.cells);
-    if (cellsStr.length > 1900) cellsStr = '{}';
+    if (cellsStr.length > 3900) cellsStr = '{}';
     myPlayerRef.update({
       grand: sc.grand, upper: sc.upper, lower: sc.lower,
       cells: cellsStr, done: !!iAmDone, filledAll: !!sc.allFilled,
