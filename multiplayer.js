@@ -53,6 +53,7 @@
   var SYNC_MIN_MS      = 400;         // min gap between score pushes
   var POLL_MS          = 1500;        // fallback score poll while in a match
   var OPP_GONE_MS      = 35 * 1000;   // opponent considered gone after this
+  var READY_TIMEOUT_MS = 30 * 1000;   // both players must accept within this window
 
   // ── Runtime state ──────────────────────────────────────────────────────────
   var db = null, auth = null, uid = null, myName = 'Player';
@@ -88,6 +89,12 @@
   var rematchVotes = {};              // uid -> round number requested, from the room
   var roundLocal = 0;                 // rounds completed via rematch on this client
   var gameOverShown = false;
+  var matchPhase = null;              // 'ready' (accept screen) | 'playing'
+  var readyAccepted = false;          // I tapped Accept
+  var readySawOpp = false;            // opponent has appeared in the ready phase
+  var matchCanceled = false;
+  var readyTimer = null;
+  var readyDeadline = 0;
 
   // ── Small helpers ───────────────────────────────────────────────────────────
   function $(id) { return document.getElementById(id); }
@@ -314,7 +321,16 @@
       '.mp-sheet-cap{text-align:center;font-size:12px;font-weight:800;color:var(--green-dark,#235244);margin-top:6px}',
       '.mp-sheet-empty{text-align:center;color:#7a877f;font-size:12.5px;padding:10px}',
       '.mp-toggle{background:none;border:none;color:var(--green,#2f6a5a);font-weight:800;font-size:12.5px;cursor:pointer;margin-top:8px;padding:4px}',
-      '.mp-status{font-size:12.5px;color:#5a6b64;text-align:center;margin:8px 0 2px;min-height:16px}'
+      '.mp-status{font-size:12.5px;color:#5a6b64;text-align:center;margin:8px 0 2px;min-height:16px}',
+      // ready-check
+      '.mp-ready{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin:10px 0 6px}',
+      '.mp-rc{background:#fff;border:2px solid var(--green-light,#c3dcd2);border-radius:14px;padding:14px 8px;text-align:center}',
+      '.mp-rc .who{font-size:13px;font-weight:800;color:#5a6b64;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.mp-rc .chip{margin-top:8px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;display:inline-block;background:#f0e6c9;color:#8a6d1e}',
+      '.mp-rc .chip.ready{background:#bfe6cf;color:#1c6b3f}',
+      '.mp-ready .mp-rc-vs{font-weight:900;color:#8a978f;font-size:13px}',
+      '.mp-ready-count{text-align:center;font-size:13px;font-weight:700;color:#5a6b64;margin:4px 0 8px}',
+      '.mp-ready-count span{color:var(--green-dark,#235244);font-weight:900}'
     ].join('\n');
     document.head.appendChild(css);
   }
@@ -341,7 +357,9 @@
   function openPanel() {
     buildDom();
     $('mpBackdrop').classList.add('show');
-    if (mmActive && roomCode) renderMatch();
+    if (mmActive && roomCode && matchPhase === 'playing') renderMatch();
+    else if (mmActive && roomCode && matchPhase === 'ready' && oppData && !oppData.gone) renderReady();
+    else if (mmActive && roomCode) renderSearching(T('En attente de l\'adversaire…', 'Waiting for opponent…'));
     else renderLobby();
   }
   function closePanel() {
@@ -697,37 +715,148 @@
     playersRef = roomRef.child('players');
     myPlayerRef = playersRef.child(uid);
     try { myPlayerRef.onDisconnect().remove(); } catch (e) {}
-    // Fresh round state whenever we (re)attach.
+    // Fresh round + ready state whenever we (re)attach.
     rematchVoted = false; rematchVotes = {}; roundLocal = 0; gameOverShown = false;
+    matchPhase = 'ready'; readyAccepted = false; readySawOpp = false; matchCanceled = false;
 
     if (playersListener) { try { roomRef.off('value', playersListener); } catch (e) {} }
-    // Listen on the whole room so we get players + rematch votes together.
-    playersListener = roomRef.on('value', function (snap) {
-      var room = snap.val() || {};
-      var val = room.players || {};
-      rematchVotes = room.rematch || {};
-      var found = null;
-      Object.keys(val).forEach(function (k) {
-        if (k !== uid) found = val[k];
-      });
-      if (found) {
-        var gone = found.lastActiveAt && (now() - found.lastActiveAt > OPP_GONE_MS);
-        oppData = {
-          name: found.name, grand: found.grand || 0, upper: found.upper || 0,
-          lower: found.lower || 0, done: !!found.done, filledAll: !!found.filledAll,
-          gone: gone, cells: parseCells(found.cells)
-        };
-      } else {
-        // opponent hasn't joined yet, or left
-        if (oppData) oppData.gone = true;
+    // Listen on the whole room (players + rematch votes + status) together.
+    playersListener = roomRef.on('value', onRoomSnap, function () {});
+    // Score sync starts only once both players have accepted (see beginPlaying).
+  }
+
+  function onRoomSnap(snap) {
+    var room = snap.val() || {};
+    var val = room.players || {};
+    rematchVotes = room.rematch || {};
+    var found = null;
+    Object.keys(val).forEach(function (k) { if (k !== uid) found = val[k]; });
+
+    if (found) {
+      var gone = found.lastActiveAt && (now() - found.lastActiveAt > OPP_GONE_MS);
+      oppData = {
+        name: found.name, grand: found.grand || 0, upper: found.upper || 0,
+        lower: found.lower || 0, done: !!found.done, filledAll: !!found.filledAll,
+        ready: !!found.ready, gone: gone, cells: parseCells(found.cells)
+      };
+    } else if (oppData) {
+      oppData.gone = true;
+    }
+
+    // Either side can cancel the pending match via room.status.
+    if (!matchCanceled && matchPhase === 'ready' &&
+        (room.status === 'canceled' || room.status === 'declined' || room.status === 'timeout')) {
+      cancelMatch(room.status === 'timeout'
+        ? T('Match annulé — délai dépassé.', 'Match canceled — timed out.')
+        : T('L\'adversaire a refusé le match.', 'Opponent declined the match.'));
+      return;
+    }
+
+    if (matchPhase === 'ready') {
+      if (!found) {
+        // Opponent gone after we'd already seen them → cancel; otherwise keep waiting.
+        if (readySawOpp && !matchCanceled) cancelMatch(T('L\'adversaire est parti.', 'Opponent left.'));
+        return;
       }
-      maybeApplyRematch();
-      if ($('mpVs')) paintScoreboard();
-      else if (found && $('mpBackdrop') && $('mpBackdrop').classList.contains('show')) renderMatch();
+      readySawOpp = true;
+      var meReady = !!(val[uid] && val[uid].ready);
+      var oppReady = !!found.ready;
+      if (meReady && oppReady) { beginPlaying(); return; }
+      if (!$('mpAcceptBtn')) renderReady();
+      updateReadyView(meReady, oppReady);
       updateFabState();
-      evaluateGameOver();
-    }, function () {});
+      return;
+    }
+
+    // ── playing phase ──
+    maybeApplyRematch();
+    if ($('mpVs')) paintScoreboard();
+    else if (found && $('mpBackdrop') && $('mpBackdrop').classList.contains('show')) renderMatch();
+    updateFabState();
+    evaluateGameOver();
+  }
+
+  function beginPlaying() {
+    if (matchPhase === 'playing') return;
+    matchPhase = 'playing';
+    clearReadyCountdown();
     startScoreSync();
+    if ($('mpBackdrop') && $('mpBackdrop').classList.contains('show')) renderMatch();
+  }
+
+  // ── Ready-check (both players must accept) ──────────────────────────────────
+  function renderReady() {
+    var s = $('mpSheet');
+    if (!s) return;
+    var oppName = (oppData && oppData.name) || T('Adversaire', 'Opponent');
+    var modeLbl = (mode === 'yahtzee') ? 'Yahtzee' : 'Yum';
+    s.innerHTML =
+      '<h2>' + T('Adversaire trouvé !', 'Opponent found!') +
+        '<button class="mp-close" id="mpCloseBtn">×</button></h2>' +
+      '<p class="mp-sub">' + T('Vous devez accepter tous les deux pour commencer. Mode : ',
+                               'You both need to accept to start. Mode: ') + modeLbl + '</p>' +
+      '<div class="mp-ready">' +
+        '<div class="mp-rc"><div class="who">' + esc(myName) + ' (' + T('toi', 'you') + ')</div>' +
+          '<div class="chip" id="mpMeChip">' + T('En attente', 'Pending') + '</div></div>' +
+        '<div class="mp-rc-vs">VS</div>' +
+        '<div class="mp-rc"><div class="who" id="mpOppWho">' + esc(oppName) + '</div>' +
+          '<div class="chip" id="mpOppChip">' + T('En attente', 'Pending') + '</div></div>' +
+      '</div>' +
+      '<div class="mp-ready-count">' + T('Temps restant : ', 'Time left: ') + '<span id="mpReadyCountdown">30s</span></div>' +
+      '<button class="mp-btn primary" id="mpAcceptBtn">✅ ' + T('Accepter', 'Accept') + '</button>' +
+      '<button class="mp-btn danger" id="mpDeclineBtn">' + T('Refuser', 'Decline') + '</button>';
+    $('mpCloseBtn').addEventListener('click', closePanel);
+    $('mpAcceptBtn').addEventListener('click', function () { acceptMatch(); });
+    $('mpDeclineBtn').addEventListener('click', function () { declineMatch(); });
+    if (!readyTimer) startReadyCountdown();
+  }
+  function updateReadyView(meReady, oppReady) {
+    if (!$('mpAcceptBtn')) return;
+    var meChip = $('mpMeChip'), oppChip = $('mpOppChip'), acc = $('mpAcceptBtn'), who = $('mpOppWho');
+    if (who && oppData && oppData.name) who.textContent = oppData.name;
+    if (meChip) { meChip.textContent = meReady ? T('Prêt ✓', 'Ready ✓') : T('En attente', 'Pending'); meChip.classList.toggle('ready', meReady); }
+    if (oppChip) { oppChip.textContent = oppReady ? T('Prêt ✓', 'Ready ✓') : T('En attente', 'Pending'); oppChip.classList.toggle('ready', oppReady); }
+    if (acc) {
+      acc.disabled = meReady;
+      acc.textContent = meReady
+        ? '⏳ ' + T('En attente de l\'adversaire…', 'Waiting for opponent…')
+        : '✅ ' + T('Accepter', 'Accept');
+    }
+  }
+  function startReadyCountdown() {
+    clearReadyCountdown();
+    if (!readyDeadline || readyDeadline < now()) readyDeadline = now() + READY_TIMEOUT_MS;
+    readyTimer = setInterval(function () {
+      var left = Math.max(0, Math.round((readyDeadline - now()) / 1000));
+      var el = $('mpReadyCountdown');
+      if (el) el.textContent = left + 's';
+      if (readyDeadline - now() <= 0) {
+        clearReadyCountdown();
+        if (matchPhase === 'ready' && !matchCanceled) {
+          if (roomRef) roomRef.child('status').set('timeout').catch(function () {});
+          cancelMatch(T('Match annulé — délai dépassé.', 'Match canceled — timed out.'));
+        }
+      }
+    }, 500);
+  }
+  function clearReadyCountdown() { if (readyTimer) { clearInterval(readyTimer); readyTimer = null; } }
+  function acceptMatch() {
+    if (!myPlayerRef) return;
+    readyAccepted = true;
+    myPlayerRef.update({ ready: true, lastActiveAt: now() }).catch(function () {});
+    updateReadyView(true, oppData && oppData.ready);
+  }
+  function declineMatch() {
+    if (roomRef) roomRef.child('status').set('declined').catch(function () {});
+    cancelMatch(T('Tu as refusé le match.', 'You declined the match.'));
+  }
+  function cancelMatch(msg) {
+    if (matchCanceled) return;
+    matchCanceled = true;
+    clearReadyCountdown();
+    leaveAll(true);
+    renderLobby();
+    showErr(msg);
   }
 
   // Both players finished (each either tapped Done or filled every category).
@@ -795,7 +924,9 @@
   function updateFabState() {
     var label = $('mpFabLabel');
     if (!label) return;
-    if (mmActive && oppData && !oppData.gone) {
+    if (mmActive && matchPhase === 'ready') {
+      label.textContent = T('Adversaire trouvé', 'Opponent found');
+    } else if (mmActive && matchPhase === 'playing' && oppData && !oppData.gone) {
       var me = readMyScore();
       label.textContent = me.grand + ' – ' + (oppData.grand || 0);
     } else if (mmActive) {
@@ -874,8 +1005,7 @@
           lastActiveAt: now(), grand: 0, upper: 0, lower: 0, done: false
         }).then(function () {
           attachRoom(code);
-          maybeSuggestMode(mode);
-          renderMatch();
+          renderReady();
         });
       });
     }).catch(function (e) {
@@ -1044,7 +1174,8 @@
       return oRef.update({ roomCode: code }).then(function () {
         db.ref(QUEUE + '/' + uid).remove().catch(function () {});
         detachQueueWatcher();
-        renderMatch();
+        // Ready overlay appears via the room listener once the guest joins.
+        renderSearching(T('Adversaire trouvé ! En attente…', 'Opponent found! Waiting…'));
         return true;
       }).catch(function () { oRef.remove().catch(function () {}); return false; });
     }).catch(function () { oRef.remove().catch(function () {}); role = null; return false; });
@@ -1068,7 +1199,7 @@
       }).then(function () {
         offerRef.remove().catch(function () {});
         attachRoom(code);
-        renderMatch();
+        renderReady();
       }).catch(function (e) {
         console.warn('[yumcard-mp] guest join failed:', e);
         role = null;
@@ -1119,6 +1250,7 @@
   function leaveAll(removeRoomData) {
     stopScoreSync();
     clearTimers();
+    clearReadyCountdown();
     detachQueueWatcher();
     detachOfferListener();
     if (roomRef && playersListener) { try { roomRef.off('value', playersListener); } catch (e) {} }
@@ -1144,6 +1276,8 @@
     offerSeen = false; roomCode = null; roomRef = null; playersRef = null;
     myPlayerRef = null; oppData = null; iAmDone = false; lastPushSig = null;
     rematchVoted = false; rematchVotes = {}; gameOverShown = false;
+    matchPhase = null; readyAccepted = false; readySawOpp = false;
+    matchCanceled = false; readyDeadline = 0;
     updateFabState();
   }
 
