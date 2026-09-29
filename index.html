@@ -780,6 +780,169 @@
     background: #fff;
     border-color: var(--green-dark);
   }
+
+  /* Install / Invite popups (reuse .picker base) */
+  .picker.install-popup, .picker.invite-popup, .picker.opponent-popup { max-width: 400px; }
+  .picker .popup-icon {
+    display: block;
+    margin: 4px auto 10px;
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    background: var(--yellow);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+  }
+  .picker .popup-title {
+    text-align: center;
+    color: var(--green-dark);
+    font-size: 18px;
+    font-weight: 800;
+    margin: 0 0 6px;
+  }
+  .picker .popup-body {
+    color: var(--green-dark);
+    font-size: 13px;
+    line-height: 1.4;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .picker .popup-body strong { color: var(--ink); }
+  .picker .ios-steps {
+    background: var(--green-row);
+    border: 1.5px solid var(--green);
+    border-radius: 8px;
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 13px;
+    color: var(--green-dark);
+    margin-bottom: 12px;
+  }
+  .picker .ios-steps ol { margin: 0; padding-left: 20px; }
+  .picker .ios-steps li { margin: 3px 0; }
+  .picker .ios-icon {
+    display: inline-block;
+    width: 16px; height: 20px;
+    vertical-align: -4px;
+    margin: 0 2px;
+  }
+
+  .picker.invite-popup .share-url,
+  .picker.opponent-popup .share-url {
+    width: 100%;
+    padding: 10px;
+    border: 1.5px solid var(--green);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--ink);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px;
+    word-break: break-all;
+    max-height: 90px;
+    overflow: auto;
+    margin-bottom: 10px;
+    text-align: left;
+    resize: none;
+  }
+  .picker.invite-popup .share-actions,
+  .picker.opponent-popup .share-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .picker.invite-popup .share-actions button,
+  .picker.opponent-popup .share-actions button {
+    flex: 1;
+    padding: 10px;
+    border: 1.5px solid var(--green);
+    background: var(--green);
+    color: #fff;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .picker.invite-popup .share-actions button.ghost,
+  .picker.opponent-popup .share-actions button.ghost {
+    background: transparent;
+    color: var(--green-dark);
+  }
+  .picker.invite-popup .copied-flash {
+    display: none;
+    text-align: center;
+    color: var(--green-dark);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 0;
+  }
+  .picker.invite-popup .copied-flash.show { display: block; }
+
+  .picker.opponent-popup .opp-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--green);
+    color: #fff;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    gap: 8px;
+  }
+  .picker.opponent-popup .opp-name {
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: 0.3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .picker.opponent-popup .opp-total {
+    background: var(--yellow);
+    color: var(--green-dark);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 900;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .picker.opponent-popup .opp-mode {
+    text-align: center;
+    font-size: 11px;
+    color: var(--green-dark);
+    opacity: 0.75;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 700;
+  }
+  .picker.opponent-popup .opp-cols {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+  .picker.opponent-popup .opp-col {
+    background: var(--green-row);
+    border: 1.5px solid var(--green);
+    border-radius: 6px;
+    padding: 6px 2px;
+    text-align: center;
+    color: var(--green-dark);
+  }
+  .picker.opponent-popup .opp-col.empty { opacity: 0.35; }
+  .picker.opponent-popup .opp-col .col-num {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    opacity: 0.7;
+  }
+  .picker.opponent-popup .opp-col .col-total {
+    display: block;
+    font-size: 15px;
+    font-weight: 900;
+  }
+
+  .toolbar button.install-btn { display: none; }
+  .toolbar button.install-btn.show { display: inline-block; }
 </style>
 </head>
 <body class="lang-fr mode-yum">
@@ -805,6 +968,14 @@
     <span class="en">Roll</span>
   </button>
   <span id="rollResult" class="roll-result" aria-live="polite"></span>
+  <button id="inviteBtn" type="button" aria-label="Invite">
+    <span class="fr">Inviter</span>
+    <span class="en">Invite</span>
+  </button>
+  <button id="installBtn" class="install-btn" type="button" aria-label="Install app">
+    <span class="fr">Installer</span>
+    <span class="en">Install</span>
+  </button>
   <button id="newGameBtn" class="ghost" type="button">
     <span class="fr">Nouvelle partie</span>
     <span class="en">New game</span>
@@ -919,7 +1090,40 @@
       pickerClear: 'Effacer',
       pickerCancel: 'Annuler',
       pickerCol: (c) => `Col ${c}`,
-      htmlLang: 'fr'
+      htmlLang: 'fr',
+      installTitle: 'Installer Yum',
+      installBody: 'Ajoutez Yum à votre écran d’accueil pour jouer sans navigateur et hors ligne.',
+      installBtn: 'Installer',
+      installLater: 'Plus tard',
+      iosStepsTitle: 'Ajouter à l’écran d’accueil',
+      iosStepsBody: 'Sur iPhone/iPad, ouvrez cette page dans Safari puis :',
+      iosStep1: 'Touchez l’icône Partager',
+      iosStep2: 'Choisissez « Sur l’écran d’accueil »',
+      iosStep3: 'Touchez « Ajouter »',
+      iosGotIt: 'OK',
+      inviteTitle: 'Inviter un adversaire',
+      inviteBody: 'Envoyez ce lien à votre adversaire. Lorsqu’il ouvrira le lien, il verra votre fiche et vous pourrez comparer vos scores.',
+      inviteEmpty: 'Feuille vide — ajoutez des scores avant d’inviter.',
+      inviteCopy: 'Copier le lien',
+      inviteShare: 'Partager',
+      inviteClose: 'Fermer',
+      inviteCopied: 'Lien copié !',
+      inviteShareTitle: (name) => name ? `Score Yum de ${name}` : 'Ma fiche Yum',
+      inviteShareText: (name, total) => name
+        ? `${name} — total ${total}. Ouvrez pour voir la fiche complète.`
+        : `Total ${total}. Ouvrez pour voir la fiche complète.`,
+      opponentTitle: 'Score de votre adversaire',
+      opponentBodyGeneric: 'Voici la fiche de scores partagée par votre adversaire.',
+      opponentModeYum: 'Yum classique',
+      opponentModeYahtzee: 'Yahtzee',
+      opponentTotal: 'Total',
+      opponentImport: 'Enregistrer dans une feuille',
+      opponentImportPrompt: 'Enregistrer dans quelle feuille ? (1–5)',
+      opponentImportConfirm: (n) => `Écraser la feuille ${n} ? Les scores actuels seront perdus.`,
+      opponentClose: 'Fermer',
+      opponentInvalid: 'Lien d’invitation invalide.',
+      opponentEmpty: 'Aucun score sur la fiche partagée.',
+      installUnavailable: 'Utilisez le menu de votre navigateur pour ajouter Yum à l’écran d’accueil.'
     },
     en: {
       docTitleYum: 'Yum — Score sheet',
@@ -932,7 +1136,40 @@
       pickerClear: 'Clear',
       pickerCancel: 'Cancel',
       pickerCol: (c) => `Col ${c}`,
-      htmlLang: 'en'
+      htmlLang: 'en',
+      installTitle: 'Install Yum',
+      installBody: 'Add Yum to your home screen to play without the browser and offline.',
+      installBtn: 'Install',
+      installLater: 'Later',
+      iosStepsTitle: 'Add to Home Screen',
+      iosStepsBody: 'On iPhone/iPad, open this page in Safari then:',
+      iosStep1: 'Tap the Share icon',
+      iosStep2: 'Choose "Add to Home Screen"',
+      iosStep3: 'Tap "Add"',
+      iosGotIt: 'OK',
+      inviteTitle: 'Invite an opponent',
+      inviteBody: 'Send this link to your opponent. When they open it, they will see your sheet and you can compare scores.',
+      inviteEmpty: 'Empty sheet — add some scores before inviting.',
+      inviteCopy: 'Copy link',
+      inviteShare: 'Share',
+      inviteClose: 'Close',
+      inviteCopied: 'Link copied!',
+      inviteShareTitle: (name) => name ? `${name}'s Yum score` : 'My Yum sheet',
+      inviteShareText: (name, total) => name
+        ? `${name} — total ${total}. Open to see the full sheet.`
+        : `Total ${total}. Open to see the full sheet.`,
+      opponentTitle: "Opponent's score",
+      opponentBodyGeneric: "Here is the score sheet your opponent shared.",
+      opponentModeYum: 'Yum classic',
+      opponentModeYahtzee: 'Yahtzee',
+      opponentTotal: 'Total',
+      opponentImport: 'Save to a sheet',
+      opponentImportPrompt: 'Save into which sheet? (1–5)',
+      opponentImportConfirm: (n) => `Overwrite sheet ${n}? Current scores will be lost.`,
+      opponentClose: 'Close',
+      opponentInvalid: 'Invalid invite link.',
+      opponentEmpty: 'No scores on the shared sheet.',
+      installUnavailable: 'Use your browser menu to add Yum to your home screen.'
     }
   };
 
@@ -1659,13 +1896,382 @@
     });
   });
 
+  // ---- Service worker ----
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+
+  // ---- Install popup (PWA) ----
+  const INSTALL_DISMISS_KEY = 'yum-card-install-dismissed';
+  const INSTALL_DISMISS_MS = 14 * 24 * 60 * 60 * 1000;
+  let deferredInstallPrompt = null;
+  let installShownThisSession = false;
+  const installBtn = document.getElementById('installBtn');
+
+  function isStandalone() {
+    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+      || window.navigator.standalone === true;
+  }
+  function isIos() {
+    const ua = navigator.userAgent || '';
+    return /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  }
+  function shouldSkipInstallAuto() {
+    if (isStandalone()) return true;
+    try {
+      const raw = localStorage.getItem(INSTALL_DISMISS_KEY);
+      if (raw) {
+        const t = parseInt(raw, 10);
+        if (!isNaN(t) && Date.now() - t < INSTALL_DISMISS_MS) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+  function markInstallDismissed() {
+    try { localStorage.setItem(INSTALL_DISMISS_KEY, String(Date.now())); } catch (e) {}
+  }
+  function showInstallBtnIfEligible() {
+    const eligible = !isStandalone() && (deferredInstallPrompt || isIos());
+    installBtn.classList.toggle('show', !!eligible);
+  }
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    showInstallBtnIfEligible();
+    if (!shouldSkipInstallAuto() && !installShownThisSession) {
+      installShownThisSession = true;
+      setTimeout(() => openInstallPopup(true), 500);
+    }
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    installBtn.classList.remove('show');
+    if (backdrop && backdrop.querySelector('.install-popup')) closePicker();
+  });
+
+  function openInstallPopup(fromAuto) {
+    closePicker();
+    const t = tr();
+    const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="popup-icon" aria-hidden="true">
+      <rect width="100" height="100" rx="18" fill="#f4c842"/>
+      <g fill="#2f6a5a">
+        <circle cx="26" cy="26" r="7.5"/><circle cx="74" cy="26" r="7.5"/>
+        <circle cx="50" cy="50" r="7.5"/>
+        <circle cx="26" cy="74" r="7.5"/><circle cx="74" cy="74" r="7.5"/>
+      </g></svg>`;
+    let body, actions;
+    const canPrompt = !!deferredInstallPrompt;
+    const ios = isIos();
+
+    if (canPrompt) {
+      body = `<div class="popup-body">${t.installBody}</div>`;
+      actions = `
+        <div class="actions">
+          <button type="button" data-action="install-later">${t.installLater}</button>
+          <button type="button" data-action="install-now" class="primary">${t.installBtn}</button>
+        </div>`;
+    } else if (ios) {
+      const shareIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="ios-icon" fill="none" stroke="#2f6a5a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13"/><path d="M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>`;
+      const plusIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="ios-icon" fill="none" stroke="#2f6a5a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>`;
+      body = `<div class="popup-body">${t.iosStepsBody}</div>
+        <div class="ios-steps"><ol>
+          <li>${t.iosStep1} ${shareIcon}</li>
+          <li>${t.iosStep2} ${plusIcon}</li>
+          <li>${t.iosStep3}</li>
+        </ol></div>`;
+      actions = `<div class="actions">
+        <button type="button" data-action="install-later" class="primary">${t.iosGotIt}</button>
+      </div>`;
+    } else {
+      body = `<div class="popup-body">${t.installUnavailable}</div>`;
+      actions = `<div class="actions">
+        <button type="button" data-action="install-later" class="primary">${t.iosGotIt}</button>
+      </div>`;
+    }
+
+    backdrop = document.createElement('div');
+    backdrop.className = 'picker-backdrop';
+    backdrop.innerHTML = `
+      <div class="picker install-popup" role="dialog" aria-modal="true" aria-labelledby="installTitle">
+        ${iconSvg}
+        <div class="popup-title" id="installTitle">${canPrompt ? t.installTitle : (ios ? t.iosStepsTitle : t.installTitle)}</div>
+        ${body}
+        ${actions}
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) {
+        if (fromAuto) markInstallDismissed();
+        closePicker();
+        return;
+      }
+      const action = e.target.dataset && e.target.dataset.action;
+      if (action === 'install-now' && deferredInstallPrompt) {
+        const p = deferredInstallPrompt;
+        deferredInstallPrompt = null;
+        closePicker();
+        p.prompt();
+        p.userChoice.then((choice) => {
+          if (choice && choice.outcome !== 'accepted') markInstallDismissed();
+          showInstallBtnIfEligible();
+        }).catch(() => { showInstallBtnIfEligible(); });
+      } else if (action === 'install-later') {
+        if (fromAuto) markInstallDismissed();
+        closePicker();
+      }
+    });
+  }
+
+  installBtn.addEventListener('click', () => openInstallPopup(false));
+
+  // For iOS Safari (no beforeinstallprompt), auto-show once if eligible
+  if (isIos() && !isStandalone()) {
+    showInstallBtnIfEligible();
+    if (!shouldSkipInstallAuto() && !installShownThisSession) {
+      installShownThisSession = true;
+      window.addEventListener('load', () => setTimeout(() => openInstallPopup(true), 800));
+    }
+  }
+
+  // ---- Invite / share link ----
+  const inviteBtn = document.getElementById('inviteBtn');
+
+  function collectSheetCells() {
+    const cells = {};
+    document.querySelectorAll('td.input-cell[data-cell] input').forEach(inp => {
+      if (inp.value !== '') cells[inp.id] = inp.value;
+    });
+    return cells;
+  }
+
+  function b64urlEncode(str) {
+    const b64 = btoa(unescape(encodeURIComponent(str)));
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function b64urlDecode(str) {
+    const pad = str.length % 4 === 2 ? '==' : str.length % 4 === 3 ? '=' : '';
+    const b64 = str.replace(/-/g, '+').replace(/_/g, '/') + pad;
+    return decodeURIComponent(escape(atob(b64)));
+  }
+
+  function buildInviteUrl() {
+    const cells = collectSheetCells();
+    const player = (document.getElementById('playerName').value || '').trim();
+    const payload = { v: 1, m: currentMode, p: player, c: cells };
+    const encoded = b64urlEncode(JSON.stringify(payload));
+    const base = location.origin + location.pathname + location.search;
+    return base + '#invite=' + encoded;
+  }
+
+  function computeSheetTotalsFromCells(cells, mode) {
+    const bonusValue = mode === 'yahtzee' ? 35 : 25;
+    const rows = LOWER_ROWS_BY_MODE[mode] || LOWER_ROWS_BY_MODE.yum;
+    const perCol = [];
+    let grand = 0;
+    for (let c = 1; c <= PLAYER_COUNT; c++) {
+      let sub = 0;
+      for (let i = 1; i <= 6; i++) {
+        const v = parseInt(cells['u' + i + '-' + c], 10);
+        if (!isNaN(v)) sub += v;
+      }
+      const bonus = sub >= 63 ? bonusValue : 0;
+      const upper = (sub > 0 || bonus > 0) ? sub + bonus : 0;
+      let lower = 0;
+      rows.forEach(r => {
+        const v = parseInt(cells[r.id + '-' + c], 10);
+        if (!isNaN(v)) lower += v;
+      });
+      const total = upper + lower;
+      perCol.push(total);
+      grand += total;
+    }
+    return { perCol, grand };
+  }
+
+  function openInvitePopup() {
+    closePicker();
+    const t = tr();
+    const cells = collectSheetCells();
+    const isEmpty = Object.keys(cells).length === 0
+      && !(document.getElementById('playerName').value || '').trim();
+
+    if (isEmpty) {
+      backdrop = document.createElement('div');
+      backdrop.className = 'picker-backdrop';
+      backdrop.innerHTML = `
+        <div class="picker invite-popup" role="dialog" aria-modal="true">
+          <div class="popup-title">${t.inviteTitle}</div>
+          <div class="popup-body">${t.inviteEmpty}</div>
+          <div class="actions">
+            <button type="button" data-action="close" class="primary">${t.inviteClose}</button>
+          </div>
+        </div>`;
+      document.body.appendChild(backdrop);
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop || (e.target.dataset && e.target.dataset.action === 'close')) closePicker();
+      });
+      return;
+    }
+
+    const url = buildInviteUrl();
+    const canWebShare = typeof navigator.share === 'function';
+
+    backdrop = document.createElement('div');
+    backdrop.className = 'picker-backdrop';
+    backdrop.innerHTML = `
+      <div class="picker invite-popup" role="dialog" aria-modal="true">
+        <div class="popup-title">${t.inviteTitle}</div>
+        <div class="popup-body">${t.inviteBody}</div>
+        <textarea class="share-url" readonly rows="3" aria-label="Share URL"></textarea>
+        <div class="copied-flash" id="inviteCopiedFlash">${t.inviteCopied}</div>
+        <div class="share-actions">
+          <button type="button" data-action="copy" class="primary">${t.inviteCopy}</button>
+          ${canWebShare ? `<button type="button" data-action="share">${t.inviteShare}</button>` : ''}
+        </div>
+        <div class="actions">
+          <button type="button" data-action="close">${t.inviteClose}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    const urlField = backdrop.querySelector('.share-url');
+    urlField.value = url;
+
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) { closePicker(); return; }
+      const action = e.target.dataset && e.target.dataset.action;
+      if (action === 'close') { closePicker(); return; }
+      if (action === 'copy') {
+        const flash = document.getElementById('inviteCopiedFlash');
+        const done = () => {
+          if (flash) { flash.classList.add('show'); setTimeout(() => flash.classList.remove('show'), 1800); }
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(done).catch(() => {
+            urlField.select(); try { document.execCommand('copy'); done(); } catch (err) {}
+          });
+        } else {
+          urlField.select();
+          try { document.execCommand('copy'); done(); } catch (err) {}
+        }
+      } else if (action === 'share') {
+        const player = (document.getElementById('playerName').value || '').trim();
+        const totals = computeSheetTotalsFromCells(collectSheetCells(), currentMode);
+        navigator.share({
+          title: t.inviteShareTitle(player),
+          text: t.inviteShareText(player, totals.grand),
+          url
+        }).catch(() => {});
+      }
+    });
+  }
+
+  inviteBtn.addEventListener('click', openInvitePopup);
+
+  function openOpponentPopup(payload) {
+    closePicker();
+    const t = tr();
+    const mode = payload.m === 'yahtzee' ? 'yahtzee' : 'yum';
+    const cells = (payload && payload.c && typeof payload.c === 'object') ? payload.c : {};
+    const player = (typeof payload.p === 'string' ? payload.p : '').trim();
+    const totals = computeSheetTotalsFromCells(cells, mode);
+    const anyScore = totals.grand > 0;
+
+    const modeLabel = mode === 'yahtzee' ? t.opponentModeYahtzee : t.opponentModeYum;
+    const displayName = player || (currentLang === 'fr' ? 'Adversaire' : 'Opponent');
+
+    const colsHtml = totals.perCol.map((v, i) => {
+      const cls = v > 0 ? 'opp-col' : 'opp-col empty';
+      return `<div class="${cls}"><span class="col-num">${i + 1}</span><span class="col-total">${v}</span></div>`;
+    }).join('');
+
+    backdrop = document.createElement('div');
+    backdrop.className = 'picker-backdrop';
+    backdrop.innerHTML = `
+      <div class="picker opponent-popup" role="dialog" aria-modal="true">
+        <div class="popup-title">${t.opponentTitle}</div>
+        <div class="opp-meta">
+          <span class="opp-name">${escapeHtml(displayName)}</span>
+          <span class="opp-total" title="${t.opponentTotal}">${totals.grand}</span>
+        </div>
+        <div class="opp-mode">${modeLabel}</div>
+        ${anyScore ? `<div class="opp-cols">${colsHtml}</div>` : `<div class="popup-body">${t.opponentEmpty}</div>`}
+        <div class="share-actions">
+          <button type="button" data-action="import" class="primary">${t.opponentImport}</button>
+        </div>
+        <div class="actions">
+          <button type="button" data-action="close">${t.opponentClose}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) { closePicker(); return; }
+      const action = e.target.dataset && e.target.dataset.action;
+      if (action === 'close') { closePicker(); return; }
+      if (action === 'import') {
+        const answer = prompt(t.opponentImportPrompt);
+        const n = parseInt(answer, 10);
+        if (!n || n < 1 || n > SHEET_COUNT) return;
+        if (!confirm(t.opponentImportConfirm(n))) return;
+        const data = { player: player, cells: cells };
+        // Switch mode if different, save into the correct storage
+        const prevMode = currentMode;
+        try {
+          localStorage.setItem(`yum-card-${mode}-v2-sheet-${n}`, JSON.stringify(data));
+          localStorage.setItem(`yum-card-${mode}-v2-active`, String(n));
+        } catch (err) {}
+        try { localStorage.setItem(MODE_KEY, mode); } catch (err) {}
+        closePicker();
+        if (mode !== prevMode) {
+          setMode(mode);
+        } else {
+          switchSheet(n);
+          loadSheet(n);
+          recompute();
+          updateSheetTabs();
+        }
+      }
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
+  }
+
   // Init
   let savedLang = null, savedMode = null;
   try { savedLang = localStorage.getItem(LANG_KEY); } catch (e) {}
   try { savedMode = localStorage.getItem(MODE_KEY); } catch (e) {}
   migrateLegacy();
   setLang(savedLang === 'en' ? 'en' : 'fr');
-  setMode(savedMode === 'yahtzee' ? 'yahtzee' : 'yum');
+  // Peek at invite hash before setMode so we can prefer the shared payload's mode
+  const inviteMatch = (location.hash || '').match(/^#invite=([A-Za-z0-9_-]+)$/);
+  let invitePayload = null;
+  if (inviteMatch) {
+    try {
+      invitePayload = JSON.parse(b64urlDecode(inviteMatch[1]));
+    } catch (e) { invitePayload = null; }
+  }
+  const desiredMode = invitePayload && invitePayload.m === 'yahtzee' ? 'yahtzee'
+    : invitePayload && invitePayload.m === 'yum' ? 'yum'
+    : (savedMode === 'yahtzee' ? 'yahtzee' : 'yum');
+  setMode(desiredMode);
+  if (invitePayload) {
+    installShownThisSession = true; // don't stack the install popup on top
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { location.hash = ''; }
+    setTimeout(() => openOpponentPopup(invitePayload), 200);
+  } else if (inviteMatch) {
+    // Malformed invite payload — clean the URL and warn.
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { location.hash = ''; }
+    setTimeout(() => alert(tr().opponentInvalid), 100);
+  }
 })();
 </script>
 </body>
