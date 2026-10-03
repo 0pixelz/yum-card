@@ -54,7 +54,10 @@
   var POLL_MS          = 1500;        // fallback score poll while in a match
   var OPP_GONE_MS      = 2 * 60 * 1000; // no heartbeat for this long → stale (fallback)
   var READY_TIMEOUT_MS = 30 * 1000;   // both players must accept within this window
-  var HEARTBEAT_MS     = 15 * 1000;   // presence ping while in a match
+  // Presence uses only lastActiveAt (an existing field): the database rules
+  // reject rooms/players carrying unknown keys, so nothing new is written.
+  var HEARTBEAT_MS     = 10 * 1000;   // lastActiveAt ping while in a match
+  var DROP_MS          = 30 * 1000;   // no ping for this long → player dropped
   var RECONNECT_MS     = 60 * 1000;   // a dropped player may come back within this
   var MATCH_KEY        = 'yum-card-mp-match'; // local record of the live match, for rejoin
 
@@ -591,6 +594,9 @@
     inviteCode = null;
     try { localStorage.removeItem(INVITE_KEY); } catch (e) {}
   }
+  function roomExpired(room) {
+    return !!(room && room.createdAt && now() - room.createdAt > INVITE_TTL_MS);
+  }
   function inviteExpiresAt() {
     var v = readInvite();
     return v ? (v.createdAt || now()) + INVITE_TTL_MS : 0;
@@ -619,14 +625,12 @@
       var ref = db.ref(ROOMS + '/' + v.code);
       return ref.once('value').then(function (snap) {
         var room = snap.val();
-        if (!room || room.host !== uid || (room.expiresAt && now() > room.expiresAt)) { forgetInvite(); return; }
+        if (!room || room.host !== uid || roomExpired(room)) { forgetInvite(); return; }
         if (mmActive) return;
         myName = nameFromSheet(); mode = room.mode || currentMode();
         mmActive = true; role = 'host'; iAmDone = false; oppData = null;
-        var updates = {};
-        updates['players/' + uid] = makeSelfPlayer()[uid];
-        updates['status'] = null;
-        return ref.update(updates).then(function () {
+        if (room.status) ref.child('status').remove().catch(function () {});
+        return ref.child('players/' + uid).set(makeSelfPlayer()[uid]).then(function () {
           attachRoom(v.code);
           updateFabState();
           var b = $('mpBackdrop');
@@ -671,8 +675,8 @@
     });
     $('mpRematchBtn').addEventListener('click', function () { requestRematch(); });
     $('mpDoneBtn').addEventListener('click', function () { toggleDone(); });
-    $('mpNewBtn').addEventListener('click', function () { markLeft(); leaveAll(true); startFind(); });
-    $('mpLeaveBtn').addEventListener('click', function () { markLeft(); leaveAll(true); renderLobby(); });
+    $('mpNewBtn').addEventListener('click', function () { leaveAll(true); startFind(); });
+    $('mpLeaveBtn').addEventListener('click', function () { leaveAll(true); renderLobby(); });
     if (detailsOpen) $('mpDetails').classList.add('show');
     paintScoreboard();
   }
@@ -936,31 +940,26 @@
     Object.keys(val).forEach(function (k) { if (k !== uid) found = val[k]; });
 
     if (found) {
-      // `online:false` is written by onDisconnect / page close; lastActiveAt is a
-      // heartbeat-based fallback for clients that vanished without either.
-      var disc = found.online === false;
-      var stale = !disc && !!found.lastActiveAt && (now() - found.lastActiveAt > OPP_GONE_MS);
+      // Mid-match, a player whose heartbeat stopped is "dropped" (their seat is
+      // kept for RECONNECT_MS); an explicit leave removes the entry instead.
+      var silent = found.lastActiveAt ? now() - found.lastActiveAt : 0;
+      var disc = matchPhase === 'playing' && silent > DROP_MS;
       oppData = {
         name: found.name, grand: found.grand || 0, upper: found.upper || 0,
         lower: found.lower || 0, done: !!found.done, filledAll: !!found.filledAll,
-        ready: !!found.ready, gone: stale, disconnected: disc,
-        leftAt: disc ? (found.leftAt || now()) : 0, cells: parseCells(found.cells)
+        ready: !!found.ready, gone: !disc && silent > OPP_GONE_MS, disconnected: disc,
+        leftAt: disc ? found.lastActiveAt + DROP_MS : 0, cells: parseCells(found.cells)
       };
     } else if (oppData) {
       oppData.gone = true;
     }
 
     if (matchPhase === 'playing') {
-      if (room.left && room.left.uid !== uid) {
-        endMatch(T(esc(room.left.name || 'L\'adversaire') + ' a quitté la partie.',
-                   esc(room.left.name || 'Your opponent') + ' left the match.'));
-        return;
-      }
       if (!found && oppData && !gameOverShown) {
         endMatch(T('Ton adversaire a quitté la partie.', 'Your opponent left the match.'));
         return;
       }
-      if (found && found.online === false) startReconnectWatch(); else stopReconnectWatch();
+      if (oppData && oppData.disconnected) startReconnectWatch(); else stopReconnectWatch();
     }
 
     // Either side can cancel the pending match via room.status.
@@ -1037,25 +1036,13 @@
   }
 
   // ── Presence, disconnect grace period and rejoin ────────────────────────────
-  // While playing, a dropped connection flips my player entry to online:false
-  // (instead of removing it) so the opponent can wait RECONNECT_MS for me.
+  // While playing, my seat must survive a dropped connection: cancel the
+  // onDisconnect removal armed in attachRoom. The heartbeat (lastActiveAt)
+  // stopping is what tells the opponent I dropped.
   function armPresence() {
     if (!myPlayerRef) return;
     try { myPlayerRef.onDisconnect().cancel(); } catch (e) {}
-    try {
-      var ts = (window.firebase && firebase.database && firebase.database.ServerValue)
-        ? firebase.database.ServerValue.TIMESTAMP : now();
-      myPlayerRef.onDisconnect().update({ online: false, leftAt: ts });
-    } catch (e) {}
-    myPlayerRef.update({ online: true, leftAt: null, lastActiveAt: now() }).catch(function () {});
-  }
-  function suspendMatch() {
-    if (myPlayerRef) myPlayerRef.update({ online: false, leftAt: now() }).catch(function () {});
-  }
-  function markLeft() {
-    if (roomRef && uid && matchPhase === 'playing') {
-      roomRef.child('left').set({ uid: uid, name: myName, at: now() }).catch(function () {});
-    }
+    myPlayerRef.update({ lastActiveAt: now() }).catch(function () {});
   }
   function reconnectLeftSec() {
     if (!oppData || !oppData.disconnected) return 0;
@@ -1114,8 +1101,8 @@
         var players = (room && room.players) || {};
         var me = players[uid];
         var oppKey = Object.keys(players).filter(function (k) { return k !== uid; })[0];
-        var closed = !room || !me || !oppKey || (room.left && room.left.uid !== uid);
-        var late = !!(me && me.online === false && me.leftAt && (now() - me.leftAt > RECONNECT_MS));
+        var closed = !room || !me || !oppKey;
+        var late = !!(me && me.lastActiveAt && (now() - me.lastActiveAt > DROP_MS + RECONNECT_MS));
         if (closed || late) {
           forgetMatch();
           if (room) ref.remove().catch(function () {});
@@ -1315,7 +1302,7 @@
     ensureReady().then(function (u) {
       if (!u) throw new Error('auth');
       mmActive = true; role = 'host'; iAmDone = false; oppData = null;
-      return createRoom(null, true);
+      return createRoom(null);
     }).then(function (code) {
       setInvite(code);
       renderWaitingCode(code);
@@ -1326,7 +1313,7 @@
     });
   }
 
-  function createRoom(preferredCode, invite) {
+  function createRoom(preferredCode) {
     // Try up to a few random codes (or the preferred/friend one) until we win an
     // empty slot via transaction.
     var attempts = preferredCode ? [preferredCode] : [randCode(), randCode(), randCode(), randCode(), randCode()];
@@ -1337,15 +1324,15 @@
       var ref = db.ref(ROOMS + '/' + code);
       return ref.transaction(function (curr) {
         if (curr) return undefined; // taken
-        var room = {
+        // Keep to the existing schema (the rules reject unknown keys); invite
+        // expiry is derived from createdAt (see roomExpired).
+        return {
           host: uid,
           createdAt: now(),
           mode: mode,
           createdBy: preferredCode ? 'friend' : 'match',
           players: makeSelfPlayer()
         };
-        if (invite) { room.invite = true; room.expiresAt = now() + INVITE_TTL_MS; }
-        return room;
       }).then(function (res) {
         if (res && res.committed) { attachRoom(code); return code; }
         return tryNext();
@@ -1372,7 +1359,7 @@
       return ref.once('value').then(function (snap) {
         if (!snap.exists()) throw new Error('not-found');
         var room = snap.val();
-        if (room.expiresAt && now() > room.expiresAt) {
+        if (roomExpired(room)) {
           return ref.remove().catch(function () {}).then(function () { throw new Error('expired'); });
         }
         if (room.host === uid) throw new Error('own-room');
@@ -1683,7 +1670,7 @@
     });
     // Closing / reloading mid-match keeps my seat for RECONNECT_MS (see resumeMatch).
     window.addEventListener('beforeunload', function () {
-      if (matchPhase === 'playing' && roomCode) suspendMatch(); else leaveAll(true);
+      if (!(matchPhase === 'playing' && roomCode)) leaveAll(true);
     });
     // Opened from a QR / invite link → join that code right away.
     var jm = (location.hash || '').match(/^#join=([A-Z0-9]{4,8})$/i);
