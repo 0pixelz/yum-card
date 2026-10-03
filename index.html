@@ -985,6 +985,23 @@
     font-weight: 900;
   }
 
+  .picker.opponent-popup .opp-win { margin: 2px 0 12px; }
+  .picker.opponent-popup .opp-win-label {
+    text-align: center; font-size: 11px; font-weight: 800; color: var(--green-dark);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .picker.opponent-popup .opp-win-bar {
+    height: 16px; border-radius: 999px; background: #e9c6c2; overflow: hidden;
+    margin: 6px 0 4px; border: 1px solid var(--green-light);
+  }
+  .picker.opponent-popup .opp-win-bar > div { height: 100%; background: var(--green); }
+  .picker.opponent-popup .opp-win-nums {
+    display: flex; justify-content: space-between; font-size: 13px; font-weight: 900;
+  }
+  .picker.opponent-popup .opp-win-nums span:first-child { color: var(--green-dark); }
+  .picker.opponent-popup .opp-win-nums span:last-child { color: #9a2b23; }
+  .picker.opponent-popup .opp-win-hint { text-align: center; font-size: 10.5px; color: #8a978f; margin-top: 2px; }
+
   .toolbar button.install-btn { display: none; }
   .toolbar button.install-btn.show { display: inline-block; }
 </style>
@@ -1181,6 +1198,9 @@
       opponentImportConfirm: (n) => `Écraser la feuille ${n} ? Les scores actuels seront perdus.`,
       opponentClose: 'Fermer',
       opponentInvalid: 'Lien d’invitation invalide.',
+      winLabel: 'Chances de gagner',
+      winYou: 'Toi',
+      winHint: 'Estimation selon les cases restantes de chaque fiche',
       opponentEmpty: 'Aucun score sur la fiche partagée.',
       installUnavailable: 'Utilisez le menu de votre navigateur pour ajouter Yum à l’écran d’accueil.'
     },
@@ -1238,6 +1258,9 @@
       opponentImportConfirm: (n) => `Overwrite sheet ${n}? Current scores will be lost.`,
       opponentClose: 'Close',
       opponentInvalid: 'Invalid invite link.',
+      winLabel: 'Chances of winning',
+      winYou: 'You',
+      winHint: 'Estimate based on the remaining boxes of each sheet',
       opponentEmpty: 'No scores on the shared sheet.',
       installUnavailable: 'Use your browser menu to add Yum to your home screen.'
     }
@@ -2443,6 +2466,25 @@
       : mode === 'yamio' ? t.opponentModeYamio : t.opponentModeYum;
     const displayName = player || (currentLang === 'fr' ? 'Adversaire' : 'Opponent');
 
+    // Chances of winning: my sheet in the same mode vs the shared one.
+    let winHtml = '';
+    const estimate = window.yumCardMP && window.yumCardMP.winEstimate;
+    if (estimate && anyScore) {
+      const toNum = (o) => {
+        const r = {};
+        Object.keys(o).forEach(k => { const v = parseInt(o[k], 10); if (!isNaN(v)) r[k] = v; });
+        return r;
+      };
+      const pct = Math.round(estimate(toNum(collectSheetCells()), toNum(cells), mode) * 100);
+      winHtml = `
+        <div class="opp-win">
+          <div class="opp-win-label">${t.winLabel}</div>
+          <div class="opp-win-bar"><div style="width:${pct}%"></div></div>
+          <div class="opp-win-nums"><span>${t.winYou} ${pct} %</span><span>${escapeHtml(displayName)} ${100 - pct} %</span></div>
+          <div class="opp-win-hint">${t.winHint}</div>
+        </div>`;
+    }
+
     const colsHtml = totals.perCol.map((v, i) => {
       const cls = v > 0 ? 'opp-col' : 'opp-col empty';
       return `<div class="${cls}"><span class="col-num">${i + 1}</span><span class="col-total">${v}</span></div>`;
@@ -2459,6 +2501,7 @@
         </div>
         <div class="opp-mode">${modeLabel}</div>
         ${anyScore ? `<div class="opp-cols">${colsHtml}</div>` : `<div class="popup-body">${t.opponentEmpty}</div>`}
+        ${winHtml}
         <div class="share-actions">
           <button type="button" data-action="import" class="primary">${t.opponentImport}</button>
         </div>

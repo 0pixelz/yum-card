@@ -1811,6 +1811,14 @@
   // Expose a tiny hook for debugging/tests.
   window.yumCardMP = {
     open: openPanel,
+    // Win estimate between two cells maps (numbers) in mode m — used by the
+    // invite-link "opponent's score" popup in index.html.
+    winEstimate: function (meCells, oppCells, m) {
+      var a = projectSheet(meCells || {}, m), b = projectSheet(oppCells || {}, m);
+      var s = Math.sqrt(a.variance + b.variance);
+      if (s === 0) return a.mean > b.mean ? 1 : a.mean < b.mean ? 0 : 0.5;
+      return normCdf((a.mean - b.mean) / s);
+    },
     state: function () {
       return { mmActive: mmActive, role: role, roomCode: roomCode, uid: uid, opp: oppData };
     }
