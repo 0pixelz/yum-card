@@ -369,7 +369,16 @@
       '.mp-toast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}',
       '.mp-toast .big{font-size:24px;font-weight:900;letter-spacing:.3px}',
       '.mp-toast .sub{font-size:14px;opacity:.9;margin-top:6px;font-weight:700}',
-      '.mp-toast.warn{border-color:#c8443c}'
+      '.mp-toast.warn{border-color:#c8443c}',
+      // win probability
+      '.mp-win{margin-top:10px}',
+      '.mp-win-label{font-size:11px;font-weight:800;color:#5a6b64;text-align:center;text-transform:uppercase;letter-spacing:.5px}',
+      '.mp-win-bar{height:16px;border-radius:999px;background:#e9c6c2;overflow:hidden;margin:6px 0 4px;border:1px solid #d5ded8}',
+      '.mp-win-bar .me{height:100%;background:var(--green,#2f6a5a);transition:width .35s ease}',
+      '.mp-win-nums{display:flex;justify-content:space-between;font-size:13px;font-weight:900}',
+      '.mp-win-nums .a{color:var(--green-dark,#235244)}',
+      '.mp-win-nums .b{color:#9a2b23}',
+      '.mp-win-hint{font-size:10.5px;color:#8a978f;text-align:center;margin-top:2px}'
     ].join('\n');
     document.head.appendChild(css);
   }
@@ -665,6 +674,7 @@
       '<div class="mp-status" id="mpMatchStatus"></div>' +
       '<div class="mp-vs" id="mpVs"></div>' +
       '<div class="mp-diff" id="mpDiff"></div>' +
+      '<div class="mp-win" id="mpWin"></div>' +
       '<button class="mp-toggle" id="mpDetailsToggle">' + detailsToggleLabel() + '</button>' +
       '<div class="mp-details" id="mpDetails"></div>' +
       '<button class="mp-btn primary" id="mpBackBtn">⬅ ' + T('Retour à ma carte', 'Back to my card') + '</button>' +
@@ -732,6 +742,7 @@
     } else diff.textContent = '';
 
     var over = bothFinished();
+    paintWin(me, opp, over);
     var banner = $('mpGameOver');
     if (banner) {
       if (over) {
@@ -804,6 +815,74 @@
     if (newBtn) newBtn.style.display = over ? 'block' : 'none';
 
     if (detailsOpen) paintDetails(me, opp);
+  }
+
+  // ── Win probability ─────────────────────────────────────────────────────────
+  // Each unfilled category contributes its long-run average (and spread) for a
+  // player rolling three times for that category; the 63 bonus is added with
+  // its probability. The two projected totals are compared with a normal
+  // approximation. Rough, but it moves sensibly as sheets fill up.
+  var CAT_EV = {
+    u1: [2.1, 1.3], u2: [4.2, 2.6], u3: [6.3, 3.9], u4: [8.4, 5.2], u5: [10.5, 6.5], u6: [12.6, 7.8],
+    l3k: [15.2, 8.0], l4k: [8.5, 10.0], lfh: [9.2, 12.1], lchance: [22.5, 4.0],
+    lss_ya: [18.5, 14.6], lls_ya: [10.6, 17.7], lyahtzee: [2.3, 10.5],
+    lss_yum: [9.2, 7.3], lls_yum: [5.3, 8.8], lhr: [22.5, 4.0], lyum: [1.4, 6.3]
+  };
+  function catEv(rid, m) {
+    if (rid === 'lss') return CAT_EV[m === 'yum' ? 'lss_yum' : 'lss_ya'];
+    if (rid === 'lls') return CAT_EV[m === 'yum' ? 'lls_yum' : 'lls_ya'];
+    return CAT_EV[rid] || [0, 0];
+  }
+  function normCdf(z) {
+    var t = 1 / (1 + 0.2316419 * Math.abs(z));
+    var d = 0.3989423 * Math.exp(-z * z / 2);
+    var p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+    return z >= 0 ? 1 - p : p;
+  }
+  function projectSheet(cells, m) {
+    var B = m === 'yum' ? 25 : 35;
+    var mean = 0, variance = 0;
+    for (var c = 1; c <= 6; c++) {
+      var upM = 0, upV = 0, upLeft = 0;
+      for (var n = 1; n <= 6; n++) {
+        var v = cells['u' + n + '-' + c];
+        if (typeof v === 'number') upM += v;
+        else { var e = catEv('u' + n, m); upM += e[0]; upV += e[1] * e[1]; upLeft++; }
+      }
+      var pB = upLeft === 0 ? (upM >= 63 ? 1 : 0) : (upV > 0 ? 1 - normCdf((63 - upM) / Math.sqrt(upV)) : (upM >= 63 ? 1 : 0));
+      var colM = upM + B * pB, colV = upV + B * B * pB * (1 - pB);
+      (LOWER_ORDER[m] || LOWER_ORDER.yum).forEach(function (rid) {
+        if (rid === 'lybonus') { var yb = cells[rid + '-' + c]; if (typeof yb === 'number') colM += yb; return; }
+        var lv = cells[rid + '-' + c];
+        if (typeof lv === 'number') colM += lv;
+        else { var le = catEv(rid, m); colM += le[0]; colV += le[1] * le[1]; }
+      });
+      if (m === 'yamio' && cells['pdbl-' + c] === 1) { colM *= 2; colV *= 4; }
+      mean += colM; variance += colV;
+    }
+    return { mean: mean, variance: variance };
+  }
+  function winProbability(me, opp, over) {
+    if (over) return me.grand > (opp.grand || 0) ? 1 : me.grand < (opp.grand || 0) ? 0 : 0.5;
+    var m = currentMode();
+    var a = projectSheet(me.cells || {}, m), b = projectSheet(opp.cells || {}, m);
+    var s = Math.sqrt(a.variance + b.variance);
+    if (s === 0) return a.mean > b.mean ? 1 : a.mean < b.mean ? 0 : 0.5;
+    return normCdf((a.mean - b.mean) / s);
+  }
+  function paintWin(me, opp, over) {
+    var box = $('mpWin');
+    if (!box) return;
+    if (!opp) { box.innerHTML = ''; return; }
+    var p = winProbability(me, opp, over);
+    var pct = Math.round(p * 100);
+    var oppN = esc(opp.name || T('Adversaire', 'Opponent'));
+    box.innerHTML =
+      '<div class="mp-win-label">' + T('Chances de gagner', 'Chances of winning') + '</div>' +
+      '<div class="mp-win-bar"><div class="me" style="width:' + pct + '%"></div></div>' +
+      '<div class="mp-win-nums"><span class="a">' + T('Toi', 'You') + ' ' + pct + ' %</span>' +
+        '<span class="b">' + oppN + ' ' + (100 - pct) + ' %</span></div>' +
+      (over ? '' : '<div class="mp-win-hint">' + T('Estimation selon les cases restantes', 'Estimate based on the remaining boxes') + '</div>');
   }
 
   // Row order per mode for the full-sheet mirror (upper 1s–6s, then lower rows).
