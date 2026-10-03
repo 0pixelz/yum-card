@@ -13,6 +13,7 @@ const SHELL = [
   './index.html',
   './dice-3d-throw.js',
   './multiplayer.js',
+  './qr.js',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
