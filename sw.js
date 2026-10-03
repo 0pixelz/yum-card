@@ -7,7 +7,7 @@
 //     naturally needs the network.
 // Bump CACHE when you want to force-evict old cached shells.
 
-const CACHE = 'yumcard-v1';
+const CACHE = 'yumcard-v2';
 const SHELL = [
   './',
   './index.html',
@@ -21,9 +21,20 @@ const SHELL = [
   './icons/apple-touch-icon.png'
 ];
 
+// Always revalidate with the server (ETag → cheap 304) instead of trusting the
+// HTTP cache's max-age, so a new deploy shows up on the next load rather than
+// up to 10 minutes later. A navigation Request can't be re-created with init
+// options, so fetch its URL instead.
+function freshFetch(req) {
+  if (req.mode === 'navigate') return fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' });
+  return fetch(req, { cache: 'no-cache' });
+}
+
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())
+    caches.open(CACHE)
+      .then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'no-cache' }))))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -69,7 +80,7 @@ self.addEventListener('fetch', (e) => {
 
   // navigations + html/js/css: network-first, fall back to cache, then app shell
   e.respondWith(
-    fetch(req).then((res) => {
+    freshFetch(req).then((res) => {
       if (res && res.ok) {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(req, copy));
