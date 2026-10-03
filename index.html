@@ -1898,8 +1898,22 @@
 
   // ---- Service worker ----
   if ('serviceWorker' in navigator) {
+    // Reload once when an updated service worker takes over, so a new deploy
+    // is picked up without the user clearing anything. Skipped on the very
+    // first install (no previous controller) to avoid a pointless reload.
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloading) return;
+      reloading = true;
+      location.reload();
+    });
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+      navigator.serviceWorker.register('sw.js').then((reg) => {
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') reg.update().catch(() => {});
+        });
+      }).catch(() => {});
     });
   }
 
