@@ -136,7 +136,7 @@
   }
   function intOf(el) {
     if (!el) return 0;
-    var v = parseInt(el.textContent != null ? el.textContent : el.value, 10);
+    var v = parseInt(el.tagName === 'INPUT' ? el.value : el.textContent, 10);
     return isNaN(v) ? 0 : v;
   }
   // Categories that must carry a value (0 = scratched counts) for a sheet to be
@@ -330,7 +330,19 @@
       '.mp-rc .chip.ready{background:#bfe6cf;color:#1c6b3f}',
       '.mp-ready .mp-rc-vs{font-weight:900;color:#8a978f;font-size:13px}',
       '.mp-ready-count{text-align:center;font-size:13px;font-weight:700;color:#5a6b64;margin:4px 0 8px}',
-      '.mp-ready-count span{color:var(--green-dark,#235244);font-weight:900}'
+      '.mp-ready-count span{color:var(--green-dark,#235244);font-weight:900}',
+      // live score bar (between toolbar and sheet while a match is on)
+      '.mp-live-bar{display:none;max-width:980px;margin:12px auto 0;padding:8px 12px;background:var(--green-dark,#235244);color:#fff;border-radius:10px;align-items:center;gap:10px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3);font-size:14px;-webkit-tap-highlight-color:transparent}',
+      '.mp-live-bar.show{display:flex}',
+      '.mp-live-bar .side{flex:1;min-width:0;display:flex;align-items:center;gap:8px}',
+      '.mp-live-bar .side.opp{justify-content:flex-end}',
+      '.mp-live-bar .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.9}',
+      '.mp-live-bar .sc{font-size:22px;font-weight:900;line-height:1}',
+      '.mp-live-bar .sc.lead{color:var(--yellow,#f4c842)}',
+      '.mp-live-bar .vs{font-size:11px;font-weight:900;opacity:.6}',
+      '.mp-live-bar .view{background:var(--yellow,#f4c842);color:var(--green-dark,#235244);border:none;border-radius:999px;padding:7px 12px;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap}',
+      '.mp-live-bar .view:active{transform:scale(.97)}',
+      '@media(max-width:640px){.mp-live-bar{margin:8px 8px 0}}'
     ].join('\n');
     document.head.appendChild(css);
   }
@@ -352,6 +364,51 @@
     back.innerHTML = '<div class="mp-sheet" id="mpSheet" role="dialog" aria-modal="true"></div>';
     back.addEventListener('click', function (e) { if (e.target === back) closePanel(); });
     document.body.appendChild(back);
+    buildLiveBar();
+  }
+
+  // Live score bar: sits between the toolbar and the sheet while a match is on,
+  // mirrors both totals in real time, and opens the opponent's full card on tap.
+  function buildLiveBar() {
+    if ($('mpLiveBar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'mpLiveBar';
+    bar.className = 'mp-live-bar';
+    bar.setAttribute('role', 'button');
+    bar.innerHTML =
+      '<div class="side me" id="mpLiveMe"></div>' +
+      '<div class="vs">VS</div>' +
+      '<div class="side opp" id="mpLiveOpp"></div>' +
+      '<button type="button" class="view" id="mpLiveView"></button>';
+    bar.addEventListener('click', openOpponentSheet);
+    var card = $('card');
+    if (card && card.parentNode) card.parentNode.insertBefore(bar, card);
+    else document.body.appendChild(bar);
+  }
+  function updateLiveBar() {
+    var bar = $('mpLiveBar');
+    if (!bar) return;
+    var live = mmActive && matchPhase === 'playing' && oppData && !oppData.gone;
+    bar.classList.toggle('show', !!live);
+    if (!live) return;
+    var me = readMyScore();
+    var og = oppData.grand || 0;
+    $('mpLiveMe').innerHTML =
+      '<span class="nm">' + esc(myName) + '</span>' +
+      '<span class="sc' + (me.grand > og ? ' lead' : '') + '">' + me.grand + '</span>';
+    $('mpLiveOpp').innerHTML =
+      '<span class="sc' + (og > me.grand ? ' lead' : '') + '">' + og + '</span>' +
+      '<span class="nm">' + esc(oppData.name || T('Adversaire', 'Opponent')) + '</span>';
+    $('mpLiveView').textContent = '👁 ' + T('Voir sa carte', 'View their card');
+  }
+  function openOpponentSheet() {
+    detailsOpen = true;
+    openPanel();
+    var d = $('mpDetails');
+    if (d) {
+      d.classList.add('show');
+      try { d.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+    }
   }
 
   function openPanel() {
@@ -450,7 +507,12 @@
   }
 
   // ── Match / scoreboard view ─────────────────────────────────────────────────
-  var detailsOpen = false;
+  var detailsOpen = true;
+  function detailsToggleLabel() {
+    return detailsOpen
+      ? T('Masquer la feuille', 'Hide sheet')
+      : T('Voir la feuille de l\'adversaire (6 colonnes)', 'Show opponent\'s full sheet (6 columns)');
+  }
   function renderMatch() {
     var s = $('mpSheet');
     if (!s) return;
@@ -461,7 +523,7 @@
       '<div class="mp-status" id="mpMatchStatus"></div>' +
       '<div class="mp-vs" id="mpVs"></div>' +
       '<div class="mp-diff" id="mpDiff"></div>' +
-      '<button class="mp-toggle" id="mpDetailsToggle">' + T('Voir la feuille de l\'adversaire (6 colonnes)', 'Show opponent\'s full sheet (6 columns)') + '</button>' +
+      '<button class="mp-toggle" id="mpDetailsToggle">' + detailsToggleLabel() + '</button>' +
       '<div class="mp-details" id="mpDetails"></div>' +
       '<button class="mp-btn primary" id="mpRematchBtn" style="display:none"></button>' +
       '<button class="mp-btn accent" id="mpDoneBtn"></button>' +
@@ -471,9 +533,7 @@
     $('mpDetailsToggle').addEventListener('click', function () {
       detailsOpen = !detailsOpen;
       $('mpDetails').classList.toggle('show', detailsOpen);
-      this.textContent = detailsOpen
-        ? T('Masquer la feuille', 'Hide sheet')
-        : T('Voir la feuille de l\'adversaire (6 colonnes)', 'Show opponent\'s full sheet (6 columns)');
+      this.textContent = detailsToggleLabel();
       paintScoreboard();
     });
     $('mpRematchBtn').addEventListener('click', function () { requestRematch(); });
@@ -683,6 +743,7 @@
       lastActiveAt: now()
     }).catch(function () {});
     if ($('mpVs')) paintScoreboard();
+    updateFabState();
     evaluateGameOver();
   }
   function startScoreSync() {
@@ -928,12 +989,14 @@
       label.textContent = T('Adversaire trouvé', 'Opponent found');
     } else if (mmActive && matchPhase === 'playing' && oppData && !oppData.gone) {
       var me = readMyScore();
-      label.textContent = me.grand + ' – ' + (oppData.grand || 0);
+      label.textContent = T('Toi', 'You') + ' ' + me.grand + ' · ' + (oppData.grand || 0) + ' ' +
+        (oppData.name || T('Adv.', 'Opp.'));
     } else if (mmActive) {
       label.textContent = T('En partie', 'In match');
     } else {
       label.textContent = T('Multijoueur', 'Multiplayer');
     }
+    updateLiveBar();
   }
 
   // ── Create / join by code ───────────────────────────────────────────────────
