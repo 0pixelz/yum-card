@@ -892,12 +892,15 @@
     yahtzee: ['l3k', 'l4k', 'lfh', 'lss', 'lls', 'lyahtzee', 'lchance', 'lybonus']
   };
   LOWER_ORDER.yamio = LOWER_ORDER.yahtzee;
-  // Yamio power-up slots (p1: 63 bonus, p2: lower complete). A slot holds 99
-  // (golden die, a marker) or the 1-based index (u1–u6, then lower rows) of the
-  // category whose points count double.
+  // Yamio power-up slots: g1/d1 are the free golden die and double points,
+  // x1/x2 the extras earned with the 63 bonus and the five lower combos. A slot
+  // holds 99 (golden die, a marker) or the 1-based index (u1–u6, then lower
+  // rows) of the category whose points count double.
   var POWER_SLOTS = [
-    { id: 'p1', label: T('🏆 Boni 63 → power-up', '🏆 Bonus 63 → power-up') },
-    { id: 'p2', label: T('✅ Bas complété → power-up', '✅ Lower complete → power-up') }
+    { id: 'g1', label: T('🎲 Dé doré', '🎲 Golden die') },
+    { id: 'd1', label: T('×2 Double points', '×2 Double points') },
+    { id: 'x1', label: T('🏆 Extra · boni 63', '🏆 Extra · bonus 63') },
+    { id: 'x2', label: T('🎯 Extra · 5 combos', '🎯 Extra · 5 combos') }
   ];
   function cellMult(cells, rid, c, m) {
     if (m !== 'yamio') return 1;
