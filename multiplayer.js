@@ -667,6 +667,7 @@
       '<div class="mp-diff" id="mpDiff"></div>' +
       '<button class="mp-toggle" id="mpDetailsToggle">' + detailsToggleLabel() + '</button>' +
       '<div class="mp-details" id="mpDetails"></div>' +
+      '<button class="mp-btn primary" id="mpBackBtn">⬅ ' + T('Retour à ma carte', 'Back to my card') + '</button>' +
       '<button class="mp-btn primary" id="mpRematchBtn" style="display:none"></button>' +
       '<button class="mp-btn accent" id="mpDoneBtn"></button>' +
       '<button class="mp-btn ghost" id="mpNewBtn">🔎 ' + T('Nouvel adversaire', 'New opponent') + '</button>' +
@@ -678,6 +679,7 @@
       this.textContent = detailsToggleLabel();
       paintScoreboard();
     });
+    $('mpBackBtn').addEventListener('click', closePanel);
     $('mpRematchBtn').addEventListener('click', function () { requestRematch(); });
     $('mpDoneBtn').addEventListener('click', function () { toggleDone(); });
     $('mpNewBtn').addEventListener('click', function () { leaveAll(true); startFind(); });
