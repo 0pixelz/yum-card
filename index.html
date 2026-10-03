@@ -112,8 +112,39 @@
   body.lang-en .fr { display: none !important; }
 
   /* Mode toggle reuses lang-toggle styling */
-  body.mode-yum .yahtzee-only { display: none !important; }
-  body.mode-yahtzee .yum-only { display: none !important; }
+  body.mode-yum .yahtzee-only, body.mode-yum .yamio-only { display: none !important; }
+  body.mode-yahtzee .yum-only, body.mode-yahtzee .yamio-only { display: none !important; }
+  body.mode-yamio .yum-only, body.mode-yamio .yahtzee-only { display: none !important; }
+
+  /* Yamio logo (gold) */
+  .logo.yamio-logo {
+    background: linear-gradient(135deg, #f8d65a, #d99a12);
+    color: #4a2f00;
+    font-family: "Arial Black", Arial, sans-serif;
+    font-weight: 900;
+    font-style: italic;
+    font-size: 26px;
+    letter-spacing: 1px;
+    padding: 10px 14px;
+    box-shadow: 0 0 0 2px #b8860b inset;
+  }
+  .logo.yamio-logo .tag { color: #4a2f00; }
+
+  /* Yamio power-up rows: one tap-toggle per column */
+  tr.power td.label, tr.power td.maxscore { background: #fff3c4; }
+  tr.power td.label .num { font-size: 16px; min-width: 26px; }
+  td.input-cell.power { background: #fffaf0; cursor: pointer; position: relative; }
+  td.input-cell.power input { color: transparent; cursor: pointer; }
+  td.input-cell.power.on { background: var(--yellow); }
+  td.input-cell.power.on::after {
+    content: attr(data-icon);
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 900; color: var(--green-dark);
+    pointer-events: none;
+  }
+  .grand-cell.doubled { box-shadow: 0 0 0 2px #c8302c inset; }
+  .grand-cell.doubled .col::after { content: ' ×2'; color: #c8302c; }
 
   /* Yahtzee logo (red) when in Yahtzee mode */
   .logo.yahtzee-logo {
@@ -953,10 +984,13 @@
     <span class="yum-only en">Yum — Score sheet</span>
     <span class="yahtzee-only fr">Yahtzee — Fiche de pointage</span>
     <span class="yahtzee-only en">Yahtzee — Score sheet</span>
+    <span class="yamio-only fr">Yamio — Fiche de pointage</span>
+    <span class="yamio-only en">Yamio — Score sheet</span>
   </h1>
   <div class="lang-toggle" id="modeToggle" role="group" aria-label="Mode">
     <button type="button" data-mode="yum">YUM</button>
     <button type="button" data-mode="yahtzee">YAHTZEE</button>
+    <button type="button" data-mode="yamio">YAMIO</button>
   </div>
   <div class="lang-toggle" id="langToggle" role="group" aria-label="Langue / Language">
     <button type="button" data-lang="fr">FR</button>
@@ -1004,6 +1038,7 @@
     <div class="logo" id="logoEl">
       <span class="yum-only">yum<span class="reg">®</span><span class="tag"><span class="fr">classique</span><span class="en">classic</span></span></span>
       <span class="yahtzee-only">YAHTZEE<span class="reg">®</span></span>
+      <span class="yamio-only">YAMIO<span class="tag"><span class="fr">dé doré · double points</span><span class="en">golden die · double points</span></span></span>
     </div>
     <div class="title">
       <div class="fr">Fiche de pointage</div>
@@ -1082,6 +1117,7 @@
     fr: {
       docTitleYum: 'Yum — Fiche de pointage',
       docTitleYahtzee: 'Yahtzee — Fiche de pointage',
+      docTitleYamio: 'Yamio — Fiche de pointage',
       newGameConfirm: 'Démarrer une nouvelle partie ? Tous les scores de cette feuille seront effacés.',
       clearColPrompt: 'Effacer quelle colonne ? (1–6)',
       resetAllConfirm: 'Réinitialiser TOUTES les feuilles ? Tous les scores seront effacés.',
@@ -1116,6 +1152,7 @@
       opponentBodyGeneric: 'Voici la fiche de scores partagée par votre adversaire.',
       opponentModeYum: 'Yum classique',
       opponentModeYahtzee: 'Yahtzee',
+      opponentModeYamio: 'Yamio',
       opponentTotal: 'Total',
       opponentImport: 'Enregistrer dans une feuille',
       opponentImportPrompt: 'Enregistrer dans quelle feuille ? (1–5)',
@@ -1128,6 +1165,7 @@
     en: {
       docTitleYum: 'Yum — Score sheet',
       docTitleYahtzee: 'Yahtzee — Score sheet',
+      docTitleYamio: 'Yamio — Score sheet',
       newGameConfirm: 'Start a new game? All scores on this sheet will be cleared.',
       clearColPrompt: 'Clear which column? (1–6)',
       resetAllConfirm: 'Reset ALL sheets? All scores will be erased.',
@@ -1162,6 +1200,7 @@
       opponentBodyGeneric: "Here is the score sheet your opponent shared.",
       opponentModeYum: 'Yum classic',
       opponentModeYahtzee: 'Yahtzee',
+      opponentModeYamio: 'Yamio',
       opponentTotal: 'Total',
       opponentImport: 'Save to a sheet',
       opponentImportPrompt: 'Save into which sheet? (1–5)',
@@ -1176,8 +1215,8 @@
   let currentLang = 'fr';
   function tr() { return T[currentLang]; }
   function updateDocTitle() {
-    document.title = currentMode === 'yahtzee'
-      ? T[currentLang].docTitleYahtzee
+    document.title = currentMode === 'yahtzee' ? T[currentLang].docTitleYahtzee
+      : currentMode === 'yamio' ? T[currentLang].docTitleYamio
       : T[currentLang].docTitleYum;
   }
   function setLang(lang) {
@@ -1258,7 +1297,20 @@
         maxFr: '100 PAR BONUS', maxEn: '100 PER BONUS', maxNum: 300 }
     ]
   };
+  // Yamio: Yahtzee's card plus two power-ups per column (see POWER_ROWS).
+  LOWER_ROWS_BY_MODE.yamio = LOWER_ROWS_BY_MODE.yahtzee;
   let LOWER_ROWS = LOWER_ROWS_BY_MODE.yum;
+  const POWER_ROWS = [
+    { id: 'pgold', icon: '🎲', labelFr: 'DÉ DORÉ', labelEn: 'GOLDEN DIE',
+      hintFr: '6e dé · totaux des dés jusqu\'à 36', hintEn: '6th die · dice totals up to 36' },
+    { id: 'pdbl', icon: '×2', labelFr: 'DOUBLE POINTS', labelEn: 'DOUBLE POINTS',
+      hintFr: 'toute la colonne ×2', hintEn: 'whole column ×2' }
+  ];
+  function bonusFor() { return currentMode === 'yum' ? 25 : 35; }
+  function powerOn(id, col) {
+    const el = document.getElementById(id + '-' + col);
+    return !!(el && el.value === '1');
+  }
 
   const upperBody = document.getElementById('upperBody');
   const lowerBody = document.getElementById('lowerBody');
@@ -1281,7 +1333,7 @@
       colCells('uSub', true);
     upperBody.appendChild(trSub);
 
-    const bonusVal = currentMode === 'yahtzee' ? 35 : 25;
+    const bonusVal = bonusFor();
     const trBonus = document.createElement('tr');
     trBonus.className = 'bonus computed';
     trBonus.innerHTML =
@@ -1328,6 +1380,29 @@
       tr.innerHTML = labelHtml + maxHtml + colCells(r.id);
       lowerBody.appendChild(tr);
     });
+
+    if (currentMode === 'yamio') {
+      const trHead = document.createElement('tr');
+      trHead.className = 'subtotal';
+      trHead.innerHTML =
+        `<td class="label" colspan="2" style="text-align:center;color:#fff"><span class="fr">POWER-UPS · 1 PAR COLONNE</span><span class="en">POWER-UPS · 1 PER COLUMN</span></td>` +
+        `<td class="label" colspan="6" style="text-align:center;color:#fff;font-size:10px;font-weight:600"><span class="fr">Touche une case pour l'utiliser</span><span class="en">Tap a cell to use it</span></td>`;
+      lowerBody.appendChild(trHead);
+      POWER_ROWS.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.className = 'power';
+        let cells = '';
+        for (let c = 1; c <= PLAYER_COUNT; c++) {
+          const id = `${r.id}-${c}`;
+          cells += `<td class="input-cell power" data-cell="${id}" data-icon="${r.icon}"><input type="text" maxlength="1" id="${id}" class="power-toggle" data-col="${c}" data-row="${r.id}" readonly tabindex="-1" aria-label="${r.labelFr} ${c}"></td>`;
+        }
+        tr.innerHTML =
+          `<td class="label"><div class="label-inner"><span class="num">${r.icon}</span><div class="label-text"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div></div></td>` +
+          `<td class="maxscore"><div class="maxlabel"><span class="fr">${r.hintFr}</span><span class="en">${r.hintEn}</span></div></td>` +
+          cells;
+        lowerBody.appendChild(tr);
+      });
+    }
 
     const trLowerTotal = document.createElement('tr');
     trLowerTotal.className = 'total computed';
@@ -1396,11 +1471,12 @@
       lybonus: { kind: 'fixed', values: [0,100,200,300,400,500,600], titleFr: 'BONUS YAHTZEE', titleEn: 'YAHTZEE BONUS' }
     }
   };
+  LOWER_PICKER_BY_MODE.yamio = LOWER_PICKER_BY_MODE.yahtzee;
   let PICKER_OPTIONS = Object.assign({}, UPPER_PICKER, LOWER_PICKER_BY_MODE.yum);
 
-  function sumOptions() {
+  function sumOptions(max) {
     const arr = [0];
-    for (let i = 5; i <= 30; i++) arr.push(i);
+    for (let i = 5; i <= (max || 30); i++) arr.push(i);
     return arr;
   }
 
@@ -1414,7 +1490,9 @@
     const col = input.dataset.col;
     const opt = PICKER_OPTIONS[rowId];
     if (!opt) return;
-    const values = opt.kind === 'sum' ? sumOptions() : opt.values;
+    // Yamio's golden die is a 6th die: dice totals can reach 36 in that column.
+    const sumMax = currentMode === 'yamio' && powerOn('pgold', col) ? 36 : 30;
+    const values = opt.kind === 'sum' ? sumOptions(sumMax) : opt.values;
     const currentVal = input.value;
 
     const title = currentLang === 'en' ? opt.titleEn : opt.titleFr;
@@ -1538,7 +1616,7 @@
         </div>`;
     }).join('');
 
-    const bonusValue = currentMode === 'yahtzee' ? 35 : 25;
+    const bonusValue = bonusFor();
     const title = isFr ? `BONI 63 — Col ${col}` : `BONUS 63 — Col ${col}`;
     const summaryText = reached
       ? (isFr ? `Boni atteint ! ${total}/63 · +${bonusValue}` : `Bonus reached! ${total}/63 · +${bonusValue}`)
@@ -1592,7 +1670,7 @@
       setComputed(`uSub-${c}`, sub);
 
       // Bonus — always show how many points are still needed to reach 63.
-      const bonusValue = currentMode === 'yahtzee' ? 35 : 25;
+      const bonusValue = bonusFor();
       const bonus = sub >= 63 ? bonusValue : 0;
       const bonusEl = document.getElementById(`uBonus-${c}`);
       let upperPlayed = 0;
@@ -1624,10 +1702,14 @@
       setComputed(`lTotal-${c}`, lower);
 
       // Grand
-      const grand = upperTotal + lower;
+      const doubled = currentMode === 'yamio' && powerOn('pdbl', c);
+      const grand = (upperTotal + lower) * (doubled ? 2 : 1);
       totals.push(grand);
       const g = document.getElementById(`grand-${c}`);
-      if (g) g.textContent = String(grand);
+      if (g) {
+        g.textContent = String(grand);
+        g.parentElement.classList.toggle('doubled', doubled);
+      }
       if (grand > bestTotal) bestTotal = grand;
     }
     // Winner line
@@ -1656,7 +1738,7 @@
     document.querySelectorAll('td.input-cell[data-cell] input').forEach(i => {
       i.value = '';
       const td = i.closest('td');
-      if (td) td.classList.remove('scratched');
+      if (td) td.classList.remove('scratched', 'on');
     });
     document.getElementById('playerName').value = '';
   }
@@ -1672,10 +1754,9 @@
           const el = document.getElementById(k);
           if (el) {
             el.value = data.cells[k];
-            if (data.cells[k] === '0') {
-              const td = el.closest('td');
-              if (td) td.classList.add('scratched');
-            }
+            const td = el.closest('td');
+            if (td && td.classList.contains('power')) td.classList.toggle('on', data.cells[k] === '1');
+            else if (td && data.cells[k] === '0') td.classList.add('scratched');
           }
         });
       }
@@ -1750,7 +1831,7 @@
         cells = raw ? (JSON.parse(raw).cells || {}) : {};
       } catch (e) { cells = {}; }
     }
-    const bonusValue = currentMode === 'yahtzee' ? 35 : 25;
+    const bonusValue = bonusFor();
     let total = 0;
     for (let c = 1; c <= PLAYER_COUNT; c++) {
       let sub = 0;
@@ -1765,7 +1846,8 @@
         const v = parseInt(cells[r.id + '-' + c], 10);
         if (!isNaN(v)) lower += v;
       });
-      total += upper + lower;
+      const doubled = currentMode === 'yamio' && cells['pdbl-' + c] === '1';
+      total += (upper + lower) * (doubled ? 2 : 1);
     }
     return total;
   }
@@ -1790,9 +1872,19 @@
   // ---- Input handling (re-bind after rebuild) ----
   function attachCellHandlers() {
     document.querySelectorAll('td.input-cell[data-cell] input').forEach(inp => {
+      if (inp.classList.contains('power-toggle')) return;
       const open = (e) => { e.preventDefault(); openPicker(inp); };
       inp.addEventListener('click', open);
       inp.addEventListener('focus', open);
+    });
+    document.querySelectorAll('td.input-cell.power').forEach(td => {
+      td.addEventListener('click', () => {
+        const inp = td.querySelector('input');
+        const on = inp.value !== '1';
+        inp.value = on ? '1' : '';
+        td.classList.toggle('on', on);
+        recompute(); save();
+      });
     });
     document.querySelectorAll('tr.bonus td.input-cell').forEach(td => {
       td.addEventListener('click', () => {
@@ -1821,7 +1913,7 @@
     if (!c || c < 1 || c > PLAYER_COUNT) return;
     document.querySelectorAll(`td.input-cell[data-cell] input[data-col="${c}"]`).forEach(i => {
       i.value = '';
-      i.closest('td').classList.remove('scratched');
+      i.closest('td').classList.remove('scratched', 'on');
     });
     recompute(); save();
   });
@@ -1832,15 +1924,19 @@
   });
 
   function setMode(mode) {
-    if (mode !== 'yum' && mode !== 'yahtzee') return;
+    if (mode !== 'yum' && mode !== 'yahtzee' && mode !== 'yamio') return;
     // Save current sheet to its mode-storage before swapping
     if (upperBody.children.length > 0) save();
 
     currentMode = mode;
     document.body.classList.toggle('mode-yum', mode === 'yum');
     document.body.classList.toggle('mode-yahtzee', mode === 'yahtzee');
+    document.body.classList.toggle('mode-yamio', mode === 'yamio');
     const logoEl = document.getElementById('logoEl');
-    if (logoEl) logoEl.classList.toggle('yahtzee-logo', mode === 'yahtzee');
+    if (logoEl) {
+      logoEl.classList.toggle('yahtzee-logo', mode === 'yahtzee');
+      logoEl.classList.toggle('yamio-logo', mode === 'yamio');
+    }
     document.querySelectorAll('#modeToggle button').forEach(b => {
       b.classList.toggle('active', b.dataset.mode === mode);
     });
@@ -2082,7 +2178,7 @@
   }
 
   function computeSheetTotalsFromCells(cells, mode) {
-    const bonusValue = mode === 'yahtzee' ? 35 : 25;
+    const bonusValue = mode === 'yum' ? 25 : 35;
     const rows = LOWER_ROWS_BY_MODE[mode] || LOWER_ROWS_BY_MODE.yum;
     const perCol = [];
     let grand = 0;
@@ -2099,7 +2195,8 @@
         const v = parseInt(cells[r.id + '-' + c], 10);
         if (!isNaN(v)) lower += v;
       });
-      const total = upper + lower;
+      const doubled = mode === 'yamio' && String(cells['pdbl-' + c]) === '1';
+      const total = (upper + lower) * (doubled ? 2 : 1);
       perCol.push(total);
       grand += total;
     }
@@ -2189,13 +2286,14 @@
   function openOpponentPopup(payload) {
     closePicker();
     const t = tr();
-    const mode = payload.m === 'yahtzee' ? 'yahtzee' : 'yum';
+    const mode = payload.m === 'yahtzee' ? 'yahtzee' : payload.m === 'yamio' ? 'yamio' : 'yum';
     const cells = (payload && payload.c && typeof payload.c === 'object') ? payload.c : {};
     const player = (typeof payload.p === 'string' ? payload.p : '').trim();
     const totals = computeSheetTotalsFromCells(cells, mode);
     const anyScore = totals.grand > 0;
 
-    const modeLabel = mode === 'yahtzee' ? t.opponentModeYahtzee : t.opponentModeYum;
+    const modeLabel = mode === 'yahtzee' ? t.opponentModeYahtzee
+      : mode === 'yamio' ? t.opponentModeYamio : t.opponentModeYum;
     const displayName = player || (currentLang === 'fr' ? 'Adversaire' : 'Opponent');
 
     const colsHtml = totals.perCol.map((v, i) => {
@@ -2273,9 +2371,9 @@
       invitePayload = JSON.parse(b64urlDecode(inviteMatch[1]));
     } catch (e) { invitePayload = null; }
   }
-  const desiredMode = invitePayload && invitePayload.m === 'yahtzee' ? 'yahtzee'
-    : invitePayload && invitePayload.m === 'yum' ? 'yum'
-    : (savedMode === 'yahtzee' ? 'yahtzee' : 'yum');
+  const MODES = ['yum', 'yahtzee', 'yamio'];
+  const desiredMode = invitePayload && MODES.includes(invitePayload.m) ? invitePayload.m
+    : (MODES.includes(savedMode) ? savedMode : 'yum');
   setMode(desiredMode);
   if (invitePayload) {
     installShownThisSession = true; // don't stack the install popup on top

@@ -124,7 +124,11 @@
     return s;
   }
   function currentMode() {
-    return document.body.classList.contains('mode-yahtzee') ? 'yahtzee' : 'yum';
+    var b = document.body.classList;
+    return b.contains('mode-yahtzee') ? 'yahtzee' : b.contains('mode-yamio') ? 'yamio' : 'yum';
+  }
+  function modeName(m) {
+    return m === 'yahtzee' ? 'Yahtzee' : m === 'yamio' ? 'Yamio' : 'Yum';
   }
   function T(fr, en) {
     return document.body.classList.contains('lang-en') ? en : fr;
@@ -143,8 +147,8 @@
     lyahtzee: 'Yahtzee', lchance: T('Chance', 'Chance'), lybonus: T('Bonus Y.', 'Y. bonus')
   };
   function labelFor(rowId, m) {
-    if (rowId === 'lss') return m === 'yahtzee' ? ROW_LABELS.lss_ya : ROW_LABELS.lss_yum;
-    if (rowId === 'lls') return m === 'yahtzee' ? ROW_LABELS.lls_ya : ROW_LABELS.lls_yum;
+    if (rowId === 'lss') return m !== 'yum' ? ROW_LABELS.lss_ya : ROW_LABELS.lss_yum;
+    if (rowId === 'lls') return m !== 'yum' ? ROW_LABELS.lls_ya : ROW_LABELS.lls_yum;
     return ROW_LABELS[rowId] || rowId;
   }
   function intOf(el) {
@@ -159,6 +163,7 @@
     yum: ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'l3k', 'l4k', 'lss', 'lls', 'lhr', 'lfh', 'lyum'],
     yahtzee: ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'l3k', 'l4k', 'lfh', 'lss', 'lls', 'lyahtzee', 'lchance']
   };
+  REQUIRED.yamio = REQUIRED.yahtzee; // same card; power-ups are optional
   // Whole-sheet read: the score is the sum of ALL 6 columns (this matches the
   // total yum-card itself shows on the sheet tabs), and `cells` carries every
   // editable entry across all columns keyed by its input id ("u1-1", "l3k-4", …)
@@ -804,16 +809,22 @@
     yum: ['l3k', 'l4k', 'lss', 'lls', 'lhr', 'lfh', 'lyum'],
     yahtzee: ['l3k', 'l4k', 'lfh', 'lss', 'lls', 'lyahtzee', 'lchance', 'lybonus']
   };
+  LOWER_ORDER.yamio = LOWER_ORDER.yahtzee;
+  var POWER_ROWS = [
+    { id: 'pgold', label: T('🎲 Dé doré', '🎲 Golden die') },
+    { id: 'pdbl', label: T('×2 Double points', '×2 Double points') }
+  ];
   // Recompute a single column's totals from a whole-sheet cells map, mirroring
   // yum-card's own scoring (upper bonus at 63; 25 for Yum, 35 for Yahtzee).
   function colTotals(cells, c, m) {
     var sub = 0;
     for (var n = 1; n <= 6; n++) { var v = cells['u' + n + '-' + c]; if (typeof v === 'number') sub += v; }
-    var bonus = sub >= 63 ? (m === 'yahtzee' ? 35 : 25) : 0;
+    var bonus = sub >= 63 ? (m === 'yum' ? 25 : 35) : 0;
     var upper = (sub > 0 || bonus > 0) ? sub + bonus : 0;
     var lower = 0;
     LOWER_ORDER[m].forEach(function (rid) { var v = cells[rid + '-' + c]; if (typeof v === 'number') lower += v; });
-    return { sub: sub, bonus: bonus, upper: upper, lower: lower, grand: upper + lower };
+    var doubled = m === 'yamio' && cells['pdbl-' + c] === 1;
+    return { sub: sub, bonus: bonus, upper: upper, lower: lower, grand: (upper + lower) * (doubled ? 2 : 1) };
   }
   // Render the opponent's ENTIRE six-column sheet as a compact, scrollable grid.
   function paintDetails(me, opp) {
@@ -850,6 +861,13 @@
     upperRows.forEach(function (rid) { html += bodyRow(rid); });
     html += computedRow(T('Boni', 'Bonus'), function (t) { return t.bonus; }, 'sum');
     lowerRows.forEach(function (rid) { html += bodyRow(rid); });
+    if (m === 'yamio') {
+      POWER_ROWS.forEach(function (p) {
+        var tds = '';
+        for (var c = 1; c <= 6; c++) tds += '<td>' + (cells[p.id + '-' + c] === 1 ? '✓' : '') + '</td>';
+        html += '<tr class="sum"><td class="cat">' + p.label + '</td>' + tds + '</tr>';
+      });
+    }
     html += computedRow(T('TOTAL', 'TOTAL'), function (t) { return t.grand; }, 'grand');
     html += '</tbody></table></div>' +
       '<div class="mp-sheet-cap">' + esc(opp.name || T('Adversaire', 'Opponent')) +
@@ -1136,7 +1154,7 @@
     var s = $('mpSheet');
     if (!s) return;
     var oppName = (oppData && oppData.name) || T('Adversaire', 'Opponent');
-    var modeLbl = (mode === 'yahtzee') ? 'Yahtzee' : 'Yum';
+    var modeLbl = modeName(mode);
     s.innerHTML =
       '<h2>' + T('Adversaire trouvé !', 'Opponent found!') +
         '<button class="mp-close" id="mpCloseBtn">×</button></h2>' +
@@ -1392,8 +1410,8 @@
     // If the opponent's room uses a different mode than the local sheet, nudge.
     if (m && m !== currentMode()) {
       var st = $('mpMatchStatus');
-      if (st) st.textContent = T('Astuce : ton adversaire joue en mode ' + (m === 'yahtzee' ? 'Yahtzee' : 'Yum') + '.',
-                                 'Tip: your opponent is playing ' + (m === 'yahtzee' ? 'Yahtzee' : 'Yum') + ' mode.');
+      if (st) st.textContent = T('Astuce : ton adversaire joue en mode ' + modeName(m) + '.',
+                                 'Tip: your opponent is playing ' + modeName(m) + ' mode.');
     }
   }
 
