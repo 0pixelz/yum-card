@@ -130,21 +130,34 @@
   }
   .logo.yamio-logo .tag { color: #4a2f00; }
 
-  /* Yamio power-up rows: one tap-toggle per column */
+  /* Yamio power-up slots: earned per column (63 bonus / lower section complete) */
   tr.power td.label, tr.power td.maxscore { background: #fff3c4; }
   tr.power td.label .num { font-size: 16px; min-width: 26px; }
-  td.input-cell.power { background: #fffaf0; cursor: pointer; position: relative; }
+  td.input-cell { position: relative; }
+  td.input-cell.power { background: #f1efe6; cursor: pointer; }
   td.input-cell.power input { color: transparent; cursor: pointer; }
-  td.input-cell.power.on { background: var(--yellow); }
-  td.input-cell.power.on::after {
-    content: attr(data-icon);
+  td.input-cell.power::after {
+    content: attr(data-show);
     position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: center;
-    font-size: 16px; font-weight: 900; color: var(--green-dark);
+    font-size: 15px; font-weight: 900; color: #a4ada7;
     pointer-events: none;
   }
-  .grand-cell.doubled { box-shadow: 0 0 0 2px #c8302c inset; }
-  .grand-cell.doubled .col::after { content: ' ×2'; color: #c8302c; }
+  td.input-cell.power.ready { background: #fff8d6; }
+  td.input-cell.power.ready::after { color: var(--green); font-size: 20px; }
+  td.input-cell.power.on { background: var(--yellow); }
+  td.input-cell.power.on::after { color: var(--green-dark); }
+  td.input-cell.doubled { background: #fff1ef; }
+  td.input-cell.doubled::after {
+    content: '×2';
+    position: absolute; top: 1px; right: 3px;
+    font-size: 9px; font-weight: 900; color: #c8302c;
+    pointer-events: none;
+  }
+  .picker .chips.cats { grid-template-columns: repeat(2, 1fr); }
+  .picker .chips.cats .chip { font-size: 12px; padding: 9px 4px; line-height: 1.2; }
+  .picker .chips.cats .chip small { display: block; font-size: 10px; opacity: 0.7; font-weight: 600; }
+  .picker .chips.powers .chip { font-size: 14px; padding: 12px 6px; }
 
   /* Yahtzee logo (red) when in Yahtzee mode */
   .logo.yahtzee-logo {
@@ -1137,6 +1150,15 @@
       iosStep2: 'Choisissez « Sur l’écran d’accueil »',
       iosStep3: 'Touchez « Ajouter »',
       iosGotIt: 'OK',
+      powerTitle: (c) => `Power-up · Col ${c}`,
+      powerGold: '🎲 Dé doré',
+      powerGoldHint: 'coche : tu l’utilises avec tes dés',
+      powerDbl: '×2 Double points',
+      powerDblHint: 'une catégorie compte double',
+      powerPickCat: 'Quelle catégorie compte double ?',
+      powerLocked1: 'Débloqué quand le total partiel du haut atteint 63.',
+      powerLocked2: 'Débloqué quand toutes les cases du bas sont remplies.',
+      powerRoll: (n) => `Jeu de dés ${n}`,
       inviteTitle: 'Inviter un adversaire',
       inviteBody: 'Envoyez ce lien à votre adversaire. Lorsqu’il ouvrira le lien, il verra votre fiche et vous pourrez comparer vos scores.',
       inviteEmpty: 'Feuille vide — ajoutez des scores avant d’inviter.',
@@ -1185,6 +1207,15 @@
       iosStep2: 'Choose "Add to Home Screen"',
       iosStep3: 'Tap "Add"',
       iosGotIt: 'OK',
+      powerTitle: (c) => `Power-up · Col ${c}`,
+      powerGold: '🎲 Golden die',
+      powerGoldHint: 'check: you use it with your dice',
+      powerDbl: '×2 Double points',
+      powerDblHint: 'one category counts double',
+      powerPickCat: 'Which category counts double?',
+      powerLocked1: 'Unlocked when the upper subtotal reaches 63.',
+      powerLocked2: 'Unlocked when every lower box is filled.',
+      powerRoll: (n) => `Roll ${n}`,
       inviteTitle: 'Invite an opponent',
       inviteBody: 'Send this link to your opponent. When they open it, they will see your sheet and you can compare scores.',
       inviteEmpty: 'Empty sheet — add some scores before inviting.',
@@ -1297,19 +1328,65 @@
         maxFr: '100 PAR BONUS', maxEn: '100 PER BONUS', maxNum: 300 }
     ]
   };
-  // Yamio: Yahtzee's card plus two power-ups per column (see POWER_ROWS).
+  // Yamio: Yahtzee's card plus earned power-up slots per column (see POWER_SLOTS).
   LOWER_ROWS_BY_MODE.yamio = LOWER_ROWS_BY_MODE.yahtzee;
   let LOWER_ROWS = LOWER_ROWS_BY_MODE.yum;
-  const POWER_ROWS = [
-    { id: 'pgold', icon: '🎲', labelFr: 'DÉ DORÉ', labelEn: 'GOLDEN DIE',
-      hintFr: '6e dé · totaux des dés jusqu\'à 36', hintEn: '6th die · dice totals up to 36' },
-    { id: 'pdbl', icon: '×2', labelFr: 'DOUBLE POINTS', labelEn: 'DOUBLE POINTS',
-      hintFr: 'toute la colonne ×2', hintEn: 'whole column ×2' }
+  // Two power-up slots per column: p1 unlocks with the 63 bonus, p2 when the
+  // lower section is complete. A slot holds GOLD (golden die, a marker only)
+  // or the 1-based index (upper 1–6, then lower rows) of the category whose
+  // points count double. Stored as sheet cells so they persist/share/sync.
+  const POWER_SLOTS = [
+    { id: 'p1', icon: '🏆', labelFr: 'BONI 63 ATTEINT', labelEn: 'BONUS 63 REACHED',
+      hintFr: '→ 1 power-up', hintEn: '→ 1 power-up' },
+    { id: 'p2', icon: '✅', labelFr: 'BAS COMPLÉTÉ', labelEn: 'LOWER COMPLETE',
+      hintFr: '→ 1 power-up', hintEn: '→ 1 power-up' }
   ];
+  const GOLD = 99;
   function bonusFor() { return currentMode === 'yum' ? 25 : 35; }
-  function powerOn(id, col) {
-    const el = document.getElementById(id + '-' + col);
-    return !!(el && el.value === '1');
+  function categoryIds(rows) {
+    return ['u1', 'u2', 'u3', 'u4', 'u5', 'u6'].concat(rows.map(r => r.id));
+  }
+  function multFromCells(cells, rowId, c, mode, rows) {
+    if (mode !== 'yamio') return 1;
+    const idx = categoryIds(rows).indexOf(rowId) + 1;
+    let m = 1;
+    POWER_SLOTS.forEach(s => { if (idx && parseInt(cells[s.id + '-' + c], 10) === idx) m *= 2; });
+    return m;
+  }
+  function cellMult(rowId, c) {
+    if (currentMode !== 'yamio') return 1;
+    const cells = {};
+    POWER_SLOTS.forEach(s => { const el = document.getElementById(s.id + '-' + c); if (el) cells[s.id + '-' + c] = el.value; });
+    return multFromCells(cells, rowId, c, currentMode, LOWER_ROWS);
+  }
+  // Column total from a cells map (upper bonus on raw values, ×2 applied to points).
+  function columnTotalFromCells(cells, c, mode, rows) {
+    const bonusValue = mode === 'yum' ? 25 : 35;
+    let sub = 0, subPts = 0;
+    for (let i = 1; i <= 6; i++) {
+      const v = parseInt(cells['u' + i + '-' + c], 10);
+      if (!isNaN(v)) { sub += v; subPts += v * multFromCells(cells, 'u' + i, c, mode, rows); }
+    }
+    const bonus = sub >= 63 ? bonusValue : 0;
+    const upper = (subPts > 0 || bonus > 0) ? subPts + bonus : 0;
+    let lower = 0;
+    rows.forEach(r => {
+      const v = parseInt(cells[r.id + '-' + c], 10);
+      if (!isNaN(v)) lower += v * multFromCells(cells, r.id, c, mode, rows);
+    });
+    return upper + lower;
+  }
+  function slotUnlocked(slotId, c) {
+    if (slotId === 'p1') {
+      let sub = 0;
+      for (let n = 1; n <= 6; n++) sub += getNum(`u${n}-${c}`);
+      return sub >= 63;
+    }
+    return LOWER_ROWS.every(r => {
+      if (r.id === 'lybonus') return true;
+      const el = document.getElementById(`${r.id}-${c}`);
+      return !!(el && el.value !== '');
+    });
   }
 
   const upperBody = document.getElementById('upperBody');
@@ -1385,16 +1462,16 @@
       const trHead = document.createElement('tr');
       trHead.className = 'subtotal';
       trHead.innerHTML =
-        `<td class="label" colspan="2" style="text-align:center;color:#fff"><span class="fr">POWER-UPS · 1 PAR COLONNE</span><span class="en">POWER-UPS · 1 PER COLUMN</span></td>` +
-        `<td class="label" colspan="6" style="text-align:center;color:#fff;font-size:10px;font-weight:600"><span class="fr">Touche une case pour l'utiliser</span><span class="en">Tap a cell to use it</span></td>`;
+        `<td class="label" colspan="2" style="text-align:center;color:#fff"><span class="fr">POWER-UPS</span><span class="en">POWER-UPS</span></td>` +
+        `<td class="label" colspan="6" style="text-align:center;color:#fff;font-size:10px;font-weight:600"><span class="fr">Gagnés par colonne · touche une case débloquée</span><span class="en">Earned per column · tap an unlocked cell</span></td>`;
       lowerBody.appendChild(trHead);
-      POWER_ROWS.forEach(r => {
+      POWER_SLOTS.forEach(r => {
         const tr = document.createElement('tr');
         tr.className = 'power';
         let cells = '';
         for (let c = 1; c <= PLAYER_COUNT; c++) {
           const id = `${r.id}-${c}`;
-          cells += `<td class="input-cell power" data-cell="${id}" data-icon="${r.icon}"><input type="text" maxlength="1" id="${id}" class="power-toggle" data-col="${c}" data-row="${r.id}" readonly tabindex="-1" aria-label="${r.labelFr} ${c}"></td>`;
+          cells += `<td class="input-cell power locked" data-cell="${id}" data-show="🔒"><input type="text" maxlength="2" id="${id}" class="power-toggle" data-col="${c}" data-row="${r.id}" readonly tabindex="-1" aria-label="${r.labelFr} ${c}"></td>`;
         }
         tr.innerHTML =
           `<td class="label"><div class="label-inner"><span class="num">${r.icon}</span><div class="label-text"><span class="fr">${r.labelFr}</span><span class="en">${r.labelEn}</span></div></div></td>` +
@@ -1490,9 +1567,7 @@
     const col = input.dataset.col;
     const opt = PICKER_OPTIONS[rowId];
     if (!opt) return;
-    // Yamio's golden die is a 6th die: dice totals can reach 36 in that column.
-    const sumMax = currentMode === 'yamio' && powerOn('pgold', col) ? 36 : 30;
-    const values = opt.kind === 'sum' ? sumOptions(sumMax) : opt.values;
+    const values = opt.kind === 'sum' ? sumOptions() : opt.values;
     const currentVal = input.value;
 
     const title = currentLang === 'en' ? opt.titleEn : opt.titleFr;
@@ -1643,6 +1718,112 @@
     });
   }
 
+  // ---- Yamio power-up slots ----
+  function categoryLabel(rowId) {
+    const n = /^u(\d)$/.exec(rowId);
+    if (n) return tr().powerRoll(n[1]);
+    const r = LOWER_ROWS.find(x => x.id === rowId);
+    if (!r) return rowId;
+    const base = currentLang === 'en' ? r.labelEn : r.labelFr;
+    return (r.numLeft ? r.numLeft + ' ' : '') + base + (r.numRight ? ' ' + r.numRight : '');
+  }
+  function refreshPowerCells() {
+    document.querySelectorAll('td.input-cell.doubled').forEach(td => td.classList.remove('doubled'));
+    const ids = categoryIds(LOWER_ROWS);
+    for (let c = 1; c <= PLAYER_COUNT; c++) {
+      POWER_SLOTS.forEach(s => {
+        const inp = document.getElementById(`${s.id}-${c}`);
+        if (!inp) return;
+        const td = inp.closest('td');
+        const v = parseInt(inp.value, 10) || 0;
+        const unlocked = slotUnlocked(s.id, c);
+        td.classList.toggle('on', v > 0);
+        td.classList.toggle('ready', v === 0 && unlocked);
+        td.classList.toggle('locked', v === 0 && !unlocked);
+        td.dataset.show = v === GOLD ? '🎲' : v > 0 ? '×2' : unlocked ? '+' : '🔒';
+        if (v > 0 && v !== GOLD && ids[v - 1]) {
+          const target = document.getElementById(`${ids[v - 1]}-${c}`);
+          if (target) target.closest('td').classList.add('doubled');
+        }
+      });
+    }
+  }
+  function setSlot(slotId, c, v) {
+    const inp = document.getElementById(`${slotId}-${c}`);
+    if (!inp) return;
+    inp.value = v ? String(v) : '';
+    recompute(); save();
+  }
+  function openPowerPicker(slotId, c) {
+    closePicker();
+    const t = tr();
+    const slot = POWER_SLOTS.find(s => s.id === slotId);
+    if (!slot) return;
+    const title = t.powerTitle(c);
+
+    if (!slotUnlocked(slotId, c)) {
+      backdrop = document.createElement('div');
+      backdrop.className = 'picker-backdrop';
+      backdrop.innerHTML = `
+        <div class="picker" role="dialog" aria-modal="true">
+          <div class="head"><div class="title">${title}</div></div>
+          <div class="hint">🔒 ${slotId === 'p1' ? t.powerLocked1 : t.powerLocked2}</div>
+          <div class="actions"><button type="button" data-action="cancel" class="primary">OK</button></div>
+        </div>`;
+      document.body.appendChild(backdrop);
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop || (e.target.dataset && e.target.dataset.action === 'cancel')) closePicker();
+      });
+      return;
+    }
+
+    const cur = parseInt((document.getElementById(`${slotId}-${c}`) || {}).value, 10) || 0;
+    const ids = categoryIds(LOWER_ROWS);
+    const catChips = ids.map((rid, i) => {
+      const el = document.getElementById(`${rid}-${c}`);
+      const val = el && el.value !== '' ? (el.value === '0' ? '✗' : el.value) : '—';
+      const cls = ['chip']; if (cur === i + 1) cls.push('current');
+      return `<button type="button" class="${cls.join(' ')}" data-cat="${i + 1}">${categoryLabel(rid)}<small>${val}</small></button>`;
+    }).join('');
+
+    backdrop = document.createElement('div');
+    backdrop.className = 'picker-backdrop';
+    backdrop.innerHTML = `
+      <div class="picker" role="dialog" aria-modal="true">
+        <div class="head"><div class="title">${title}</div><div class="col">${slot.icon} ${currentLang === 'en' ? slot.labelEn : slot.labelFr}</div></div>
+        <div id="powerStep1">
+          <div class="chips powers" style="grid-template-columns:1fr 1fr">
+            <button type="button" class="chip${cur === GOLD ? ' current' : ''}" data-power="gold">${t.powerGold}<small style="display:block;font-size:10px;font-weight:600;opacity:.75">${t.powerGoldHint}</small></button>
+            <button type="button" class="chip${cur > 0 && cur !== GOLD ? ' current' : ''}" data-power="dbl">${t.powerDbl}<small style="display:block;font-size:10px;font-weight:600;opacity:.75">${t.powerDblHint}</small></button>
+          </div>
+        </div>
+        <div id="powerStep2" style="display:none">
+          <div class="hint">${t.powerPickCat}</div>
+          <div class="chips cats">${catChips}</div>
+        </div>
+        <div class="actions">
+          <button type="button" data-action="clear">${t.pickerClear}</button>
+          <button type="button" data-action="cancel" class="primary">${t.pickerCancel}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) { closePicker(); return; }
+      const power = e.target.closest('[data-power]');
+      if (power) {
+        if (power.dataset.power === 'gold') { setSlot(slotId, c, GOLD); closePicker(); }
+        else { document.getElementById('powerStep1').style.display = 'none'; document.getElementById('powerStep2').style.display = ''; }
+        return;
+      }
+      const cat = e.target.closest('[data-cat]');
+      if (cat) { setSlot(slotId, c, parseInt(cat.dataset.cat, 10)); closePicker(); return; }
+      const action = e.target.dataset && e.target.dataset.action;
+      if (action === 'clear') { setSlot(slotId, c, 0); closePicker(); }
+      else if (action === 'cancel') closePicker();
+    });
+  }
+
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closePicker();
   });
@@ -1664,10 +1845,13 @@
     let bestTotal = -1;
     const totals = [];
     for (let c = 1; c <= PLAYER_COUNT; c++) {
-      // Upper subtotal
-      let sub = 0;
-      for (let n = 1; n <= 6; n++) sub += getNum(`u${n}-${c}`);
-      setComputed(`uSub-${c}`, sub);
+      // Upper subtotal (bonus is judged on raw values; a ×2 category adds points)
+      let sub = 0, subPts = 0;
+      for (let n = 1; n <= 6; n++) {
+        const v = getNum(`u${n}-${c}`);
+        sub += v; subPts += v * cellMult(`u${n}`, c);
+      }
+      setComputed(`uSub-${c}`, subPts);
 
       // Bonus — always show how many points are still needed to reach 63.
       const bonusValue = bonusFor();
@@ -1692,26 +1876,23 @@
       }
 
       // Upper total
-      const upperTotal = sub > 0 || bonus > 0 ? sub + bonus : 0;
+      const upperTotal = subPts > 0 || bonus > 0 ? subPts + bonus : 0;
       setComputed(`uTotal-${c}`, upperTotal);
       setComputed(`uTotalCarry-${c}`, upperTotal);
 
       // Lower total
       let lower = 0;
-      LOWER_ROWS.forEach(r => { lower += getNum(`${r.id}-${c}`); });
+      LOWER_ROWS.forEach(r => { lower += getNum(`${r.id}-${c}`) * cellMult(r.id, c); });
       setComputed(`lTotal-${c}`, lower);
 
       // Grand
-      const doubled = currentMode === 'yamio' && powerOn('pdbl', c);
-      const grand = (upperTotal + lower) * (doubled ? 2 : 1);
+      const grand = upperTotal + lower;
       totals.push(grand);
       const g = document.getElementById(`grand-${c}`);
-      if (g) {
-        g.textContent = String(grand);
-        g.parentElement.classList.toggle('doubled', doubled);
-      }
+      if (g) g.textContent = String(grand);
       if (grand > bestTotal) bestTotal = grand;
     }
+    if (currentMode === 'yamio') refreshPowerCells();
     // Winner line
     const playerName = (document.getElementById('playerName').value || '').trim();
     const winnerLine = document.getElementById('winnerLine');
@@ -1755,8 +1936,7 @@
           if (el) {
             el.value = data.cells[k];
             const td = el.closest('td');
-            if (td && td.classList.contains('power')) td.classList.toggle('on', data.cells[k] === '1');
-            else if (td && data.cells[k] === '0') td.classList.add('scratched');
+            if (td && !td.classList.contains('power') && data.cells[k] === '0') td.classList.add('scratched');
           }
         });
       }
@@ -1831,24 +2011,8 @@
         cells = raw ? (JSON.parse(raw).cells || {}) : {};
       } catch (e) { cells = {}; }
     }
-    const bonusValue = bonusFor();
     let total = 0;
-    for (let c = 1; c <= PLAYER_COUNT; c++) {
-      let sub = 0;
-      for (let i = 1; i <= 6; i++) {
-        const v = parseInt(cells['u' + i + '-' + c], 10);
-        if (!isNaN(v)) sub += v;
-      }
-      const bonus = sub >= 63 ? bonusValue : 0;
-      const upper = (sub > 0 || bonus > 0) ? sub + bonus : 0;
-      let lower = 0;
-      LOWER_ROWS.forEach(r => {
-        const v = parseInt(cells[r.id + '-' + c], 10);
-        if (!isNaN(v)) lower += v;
-      });
-      const doubled = currentMode === 'yamio' && cells['pdbl-' + c] === '1';
-      total += (upper + lower) * (doubled ? 2 : 1);
-    }
+    for (let c = 1; c <= PLAYER_COUNT; c++) total += columnTotalFromCells(cells, c, currentMode, LOWER_ROWS);
     return total;
   }
   function sheetPlayer(n) {
@@ -1880,10 +2044,7 @@
     document.querySelectorAll('td.input-cell.power').forEach(td => {
       td.addEventListener('click', () => {
         const inp = td.querySelector('input');
-        const on = inp.value !== '1';
-        inp.value = on ? '1' : '';
-        td.classList.toggle('on', on);
-        recompute(); save();
+        openPowerPicker(inp.dataset.row, parseInt(inp.dataset.col, 10));
       });
     });
     document.querySelectorAll('tr.bonus td.input-cell').forEach(td => {
@@ -2178,25 +2339,11 @@
   }
 
   function computeSheetTotalsFromCells(cells, mode) {
-    const bonusValue = mode === 'yum' ? 25 : 35;
     const rows = LOWER_ROWS_BY_MODE[mode] || LOWER_ROWS_BY_MODE.yum;
     const perCol = [];
     let grand = 0;
     for (let c = 1; c <= PLAYER_COUNT; c++) {
-      let sub = 0;
-      for (let i = 1; i <= 6; i++) {
-        const v = parseInt(cells['u' + i + '-' + c], 10);
-        if (!isNaN(v)) sub += v;
-      }
-      const bonus = sub >= 63 ? bonusValue : 0;
-      const upper = (sub > 0 || bonus > 0) ? sub + bonus : 0;
-      let lower = 0;
-      rows.forEach(r => {
-        const v = parseInt(cells[r.id + '-' + c], 10);
-        if (!isNaN(v)) lower += v;
-      });
-      const doubled = mode === 'yamio' && String(cells['pdbl-' + c]) === '1';
-      const total = (upper + lower) * (doubled ? 2 : 1);
+      const total = columnTotalFromCells(cells, c, mode, rows);
       perCol.push(total);
       grand += total;
     }

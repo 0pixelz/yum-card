@@ -843,21 +843,22 @@
     var B = m === 'yum' ? 25 : 35;
     var mean = 0, variance = 0;
     for (var c = 1; c <= 6; c++) {
-      var upM = 0, upV = 0, upLeft = 0;
+      // raw upper section decides the bonus; points (with any ×2) feed the total
+      var rawM = 0, rawV = 0, upLeft = 0, colM = 0, colV = 0;
       for (var n = 1; n <= 6; n++) {
-        var v = cells['u' + n + '-' + c];
-        if (typeof v === 'number') upM += v;
-        else { var e = catEv('u' + n, m); upM += e[0]; upV += e[1] * e[1]; upLeft++; }
+        var v = cells['u' + n + '-' + c], k = cellMult(cells, 'u' + n, c, m);
+        if (typeof v === 'number') { rawM += v; colM += v * k; }
+        else { var e = catEv('u' + n, m); rawM += e[0]; rawV += e[1] * e[1]; colM += e[0] * k; colV += e[1] * e[1] * k * k; upLeft++; }
       }
-      var pB = upLeft === 0 ? (upM >= 63 ? 1 : 0) : (upV > 0 ? 1 - normCdf((63 - upM) / Math.sqrt(upV)) : (upM >= 63 ? 1 : 0));
-      var colM = upM + B * pB, colV = upV + B * B * pB * (1 - pB);
+      var pB = upLeft === 0 ? (rawM >= 63 ? 1 : 0) : (rawV > 0 ? 1 - normCdf((63 - rawM) / Math.sqrt(rawV)) : (rawM >= 63 ? 1 : 0));
+      colM += B * pB; colV += B * B * pB * (1 - pB);
       (LOWER_ORDER[m] || LOWER_ORDER.yum).forEach(function (rid) {
-        if (rid === 'lybonus') { var yb = cells[rid + '-' + c]; if (typeof yb === 'number') colM += yb; return; }
+        var lk = cellMult(cells, rid, c, m);
+        if (rid === 'lybonus') { var yb = cells[rid + '-' + c]; if (typeof yb === 'number') colM += yb * lk; return; }
         var lv = cells[rid + '-' + c];
-        if (typeof lv === 'number') colM += lv;
-        else { var le = catEv(rid, m); colM += le[0]; colV += le[1] * le[1]; }
+        if (typeof lv === 'number') colM += lv * lk;
+        else { var le = catEv(rid, m); colM += le[0] * lk; colV += le[1] * le[1] * lk * lk; }
       });
-      if (m === 'yamio' && cells['pdbl-' + c] === 1) { colM *= 2; colV *= 4; }
       mean += colM; variance += colV;
     }
     return { mean: mean, variance: variance };
@@ -891,21 +892,37 @@
     yahtzee: ['l3k', 'l4k', 'lfh', 'lss', 'lls', 'lyahtzee', 'lchance', 'lybonus']
   };
   LOWER_ORDER.yamio = LOWER_ORDER.yahtzee;
-  var POWER_ROWS = [
-    { id: 'pgold', label: T('🎲 Dé doré', '🎲 Golden die') },
-    { id: 'pdbl', label: T('×2 Double points', '×2 Double points') }
+  // Yamio power-up slots (p1: 63 bonus, p2: lower complete). A slot holds 99
+  // (golden die, a marker) or the 1-based index (u1–u6, then lower rows) of the
+  // category whose points count double.
+  var POWER_SLOTS = [
+    { id: 'p1', label: T('🏆 Boni 63 → power-up', '🏆 Bonus 63 → power-up') },
+    { id: 'p2', label: T('✅ Bas complété → power-up', '✅ Lower complete → power-up') }
   ];
+  function cellMult(cells, rid, c, m) {
+    if (m !== 'yamio') return 1;
+    var idx = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6'].concat(LOWER_ORDER.yamio).indexOf(rid) + 1;
+    var mult = 1;
+    POWER_SLOTS.forEach(function (s) { if (idx && cells[s.id + '-' + c] === idx) mult *= 2; });
+    return mult;
+  }
   // Recompute a single column's totals from a whole-sheet cells map, mirroring
   // yum-card's own scoring (upper bonus at 63; 25 for Yum, 35 for Yahtzee).
   function colTotals(cells, c, m) {
-    var sub = 0;
-    for (var n = 1; n <= 6; n++) { var v = cells['u' + n + '-' + c]; if (typeof v === 'number') sub += v; }
+    // Bonus is judged on raw values; a doubled category counts twice in points.
+    var sub = 0, subPts = 0;
+    for (var n = 1; n <= 6; n++) {
+      var v = cells['u' + n + '-' + c];
+      if (typeof v === 'number') { sub += v; subPts += v * cellMult(cells, 'u' + n, c, m); }
+    }
     var bonus = sub >= 63 ? (m === 'yum' ? 25 : 35) : 0;
-    var upper = (sub > 0 || bonus > 0) ? sub + bonus : 0;
+    var upper = (subPts > 0 || bonus > 0) ? subPts + bonus : 0;
     var lower = 0;
-    LOWER_ORDER[m].forEach(function (rid) { var v = cells[rid + '-' + c]; if (typeof v === 'number') lower += v; });
-    var doubled = m === 'yamio' && cells['pdbl-' + c] === 1;
-    return { sub: sub, bonus: bonus, upper: upper, lower: lower, grand: (upper + lower) * (doubled ? 2 : 1) };
+    LOWER_ORDER[m].forEach(function (rid) {
+      var lv = cells[rid + '-' + c];
+      if (typeof lv === 'number') lower += lv * cellMult(cells, rid, c, m);
+    });
+    return { sub: subPts, bonus: bonus, upper: upper, lower: lower, grand: upper + lower };
   }
   // Render the opponent's ENTIRE six-column sheet as a compact, scrollable grid.
   function paintDetails(me, opp) {
@@ -924,8 +941,9 @@
     }
     function cellVal(rid, c) {
       var v = cells[rid + '-' + c];
-      if (v === undefined) return '';
-      return v === 0 ? '<span class="sx">✗</span>' : v;
+      var x2 = cellMult(cells, rid, c, m) > 1 ? ' <span class="sx">×2</span>' : '';
+      if (v === undefined) return x2;
+      return (v === 0 ? '<span class="sx">✗</span>' : v) + x2;
     }
     function bodyRow(rid) {
       var tds = '';
@@ -943,9 +961,12 @@
     html += computedRow(T('Boni', 'Bonus'), function (t) { return t.bonus; }, 'sum');
     lowerRows.forEach(function (rid) { html += bodyRow(rid); });
     if (m === 'yamio') {
-      POWER_ROWS.forEach(function (p) {
+      POWER_SLOTS.forEach(function (p) {
         var tds = '';
-        for (var c = 1; c <= 6; c++) tds += '<td>' + (cells[p.id + '-' + c] === 1 ? '✓' : '') + '</td>';
+        for (var c = 1; c <= 6; c++) {
+          var sv = cells[p.id + '-' + c];
+          tds += '<td>' + (sv === 99 ? '🎲' : (sv > 0 ? '×2' : '')) + '</td>';
+        }
         html += '<tr class="sum"><td class="cat">' + p.label + '</td>' + tds + '</tr>';
       });
     }
