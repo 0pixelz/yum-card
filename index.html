@@ -985,6 +985,23 @@
     font-weight: 900;
   }
 
+  .picker.opponent-popup .opp-win { margin: 2px 0 12px; }
+  .picker.opponent-popup .opp-win-label {
+    text-align: center; font-size: 11px; font-weight: 800; color: var(--green-dark);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .picker.opponent-popup .opp-win-bar {
+    height: 16px; border-radius: 999px; background: #e9c6c2; overflow: hidden;
+    margin: 6px 0 4px; border: 1px solid var(--green-light);
+  }
+  .picker.opponent-popup .opp-win-bar > div { height: 100%; background: var(--green); }
+  .picker.opponent-popup .opp-win-nums {
+    display: flex; justify-content: space-between; font-size: 13px; font-weight: 900;
+  }
+  .picker.opponent-popup .opp-win-nums span:first-child { color: var(--green-dark); }
+  .picker.opponent-popup .opp-win-nums span:last-child { color: #9a2b23; }
+  .picker.opponent-popup .opp-win-hint { text-align: center; font-size: 10.5px; color: #8a978f; margin-top: 2px; }
+
   .toolbar button.install-btn { display: none; }
   .toolbar button.install-btn.show { display: inline-block; }
 </style>
@@ -1157,7 +1174,8 @@
       powerDblHint: 'une catégorie compte double',
       powerPickCat: 'Quelle catégorie compte double ?',
       powerLocked1: 'Débloqué quand le total partiel du haut atteint 63.',
-      powerLocked2: 'Débloqué quand toutes les cases du bas sont remplies.',
+      powerLocked2: 'Débloqué quand 3 pareils, 4 pareils, main pleine, petite et grande suite ont tous des points.',
+      powerTaken: 'déjà ×2',
       powerRoll: (n) => `Jeu de dés ${n}`,
       inviteTitle: 'Inviter un adversaire',
       inviteBody: 'Envoyez ce lien à votre adversaire. Lorsqu’il ouvrira le lien, il verra votre fiche et vous pourrez comparer vos scores.',
@@ -1181,6 +1199,9 @@
       opponentImportConfirm: (n) => `Écraser la feuille ${n} ? Les scores actuels seront perdus.`,
       opponentClose: 'Fermer',
       opponentInvalid: 'Lien d’invitation invalide.',
+      winLabel: 'Chances de gagner',
+      winYou: 'Toi',
+      winHint: 'Estimation selon les cases restantes de chaque fiche',
       opponentEmpty: 'Aucun score sur la fiche partagée.',
       installUnavailable: 'Utilisez le menu de votre navigateur pour ajouter Yum à l’écran d’accueil.'
     },
@@ -1214,7 +1235,8 @@
       powerDblHint: 'one category counts double',
       powerPickCat: 'Which category counts double?',
       powerLocked1: 'Unlocked when the upper subtotal reaches 63.',
-      powerLocked2: 'Unlocked when every lower box is filled.',
+      powerLocked2: 'Unlocked when 3 of a kind, 4 of a kind, full house, small and large straight all have points.',
+      powerTaken: 'already ×2',
       powerRoll: (n) => `Roll ${n}`,
       inviteTitle: 'Invite an opponent',
       inviteBody: 'Send this link to your opponent. When they open it, they will see your sheet and you can compare scores.',
@@ -1238,6 +1260,9 @@
       opponentImportConfirm: (n) => `Overwrite sheet ${n}? Current scores will be lost.`,
       opponentClose: 'Close',
       opponentInvalid: 'Invalid invite link.',
+      winLabel: 'Chances of winning',
+      winYou: 'You',
+      winHint: 'Estimate based on the remaining boxes of each sheet',
       opponentEmpty: 'No scores on the shared sheet.',
       installUnavailable: 'Use your browser menu to add Yum to your home screen.'
     }
@@ -1331,16 +1356,23 @@
   // Yamio: Yahtzee's card plus earned power-up slots per column (see POWER_SLOTS).
   LOWER_ROWS_BY_MODE.yamio = LOWER_ROWS_BY_MODE.yahtzee;
   let LOWER_ROWS = LOWER_ROWS_BY_MODE.yum;
-  // Two power-up slots per column: p1 unlocks with the 63 bonus, p2 when the
-  // lower section is complete. A slot holds GOLD (golden die, a marker only)
-  // or the 1-based index (upper 1–6, then lower rows) of the category whose
-  // points count double. Stored as sheet cells so they persist/share/sync.
+  // Yamio power-ups per column: a golden die and a double points are available
+  // from the start; two extras (either kind, player's pick) are unlocked by the
+  // 63 bonus and by scoring all five lower combos. A slot holds GOLD (golden
+  // die, a marker only) or the 1-based index (upper 1–6, then lower rows) of
+  // the category whose points count double. Stored as sheet cells so they
+  // persist, travel in invite links and sync in multiplayer.
   const POWER_SLOTS = [
-    { id: 'p1', icon: '🏆', labelFr: 'BONI 63 ATTEINT', labelEn: 'BONUS 63 REACHED',
-      hintFr: '→ 1 power-up', hintEn: '→ 1 power-up' },
-    { id: 'p2', icon: '✅', labelFr: 'BAS COMPLÉTÉ', labelEn: 'LOWER COMPLETE',
-      hintFr: '→ 1 power-up', hintEn: '→ 1 power-up' }
+    { id: 'g1', kind: 'gold', icon: '🎲', labelFr: 'DÉ DORÉ', labelEn: 'GOLDEN DIE',
+      hintFr: 'gratuit · coche quand utilisé', hintEn: 'free · check when used' },
+    { id: 'd1', kind: 'dbl', icon: '×2', labelFr: 'DOUBLE POINTS', labelEn: 'DOUBLE POINTS',
+      hintFr: 'gratuit · choisis la catégorie', hintEn: 'free · pick the category' },
+    { id: 'x1', kind: 'extra', icon: '🏆', labelFr: 'EXTRA · BONI 63', labelEn: 'EXTRA · BONUS 63',
+      hintFr: 'dé doré ou ×2, au choix', hintEn: 'golden die or ×2, your pick' },
+    { id: 'x2', kind: 'extra', icon: '🎯', labelFr: 'EXTRA · 5 COMBOS', labelEn: 'EXTRA · 5 COMBOS',
+      hintFr: '3 & 4 pareils, main pleine, suites', hintEn: '3 & 4 of a kind, full house, straights' }
   ];
+  const COMBO_ROWS = ['l3k', 'l4k', 'lfh', 'lss', 'lls'];
   const GOLD = 99;
   function bonusFor() { return currentMode === 'yum' ? 25 : 35; }
   function categoryIds(rows) {
@@ -1377,16 +1409,13 @@
     return upper + lower;
   }
   function slotUnlocked(slotId, c) {
-    if (slotId === 'p1') {
+    if (slotId === 'x1') {
       let sub = 0;
       for (let n = 1; n <= 6; n++) sub += getNum(`u${n}-${c}`);
       return sub >= 63;
     }
-    return LOWER_ROWS.every(r => {
-      if (r.id === 'lybonus') return true;
-      const el = document.getElementById(`${r.id}-${c}`);
-      return !!(el && el.value !== '');
-    });
+    if (slotId === 'x2') return COMBO_ROWS.every(rid => getNum(`${rid}-${c}`) > 0);
+    return true;
   }
 
   const upperBody = document.getElementById('upperBody');
@@ -1463,7 +1492,7 @@
       trHead.className = 'subtotal';
       trHead.innerHTML =
         `<td class="label" colspan="2" style="text-align:center;color:#fff"><span class="fr">POWER-UPS</span><span class="en">POWER-UPS</span></td>` +
-        `<td class="label" colspan="6" style="text-align:center;color:#fff;font-size:10px;font-weight:600"><span class="fr">Gagnés par colonne · touche une case débloquée</span><span class="en">Earned per column · tap an unlocked cell</span></td>`;
+        `<td class="label" colspan="6" style="text-align:center;color:#fff;font-size:10px;font-weight:600"><span class="fr">Dé doré et ×2 d'office · 2 extras à gagner</span><span class="en">Golden die and ×2 included · 2 extras to earn</span></td>`;
       lowerBody.appendChild(trHead);
       POWER_SLOTS.forEach(r => {
         const tr = document.createElement('tr');
@@ -1767,7 +1796,7 @@
       backdrop.innerHTML = `
         <div class="picker" role="dialog" aria-modal="true">
           <div class="head"><div class="title">${title}</div></div>
-          <div class="hint">🔒 ${slotId === 'p1' ? t.powerLocked1 : t.powerLocked2}</div>
+          <div class="hint">🔒 ${slotId === 'x1' ? t.powerLocked1 : t.powerLocked2}</div>
           <div class="actions"><button type="button" data-action="cancel" class="primary">OK</button></div>
         </div>`;
       document.body.appendChild(backdrop);
@@ -1778,26 +1807,38 @@
     }
 
     const cur = parseInt((document.getElementById(`${slotId}-${c}`) || {}).value, 10) || 0;
+    // The free golden die is a plain check: tap toggles it, no picker.
+    if (slot.kind === 'gold') { setSlot(slotId, c, cur ? 0 : GOLD); return; }
+
+    // A category can only be doubled once per column.
+    const takenIdx = new Set();
+    POWER_SLOTS.forEach(s => {
+      if (s.id === slotId) return;
+      const v = parseInt((document.getElementById(`${s.id}-${c}`) || {}).value, 10) || 0;
+      if (v > 0 && v !== GOLD) takenIdx.add(v);
+    });
     const ids = categoryIds(LOWER_ROWS);
     const catChips = ids.map((rid, i) => {
       const el = document.getElementById(`${rid}-${c}`);
       const val = el && el.value !== '' ? (el.value === '0' ? '✗' : el.value) : '—';
+      const taken = takenIdx.has(i + 1);
       const cls = ['chip']; if (cur === i + 1) cls.push('current');
-      return `<button type="button" class="${cls.join(' ')}" data-cat="${i + 1}">${categoryLabel(rid)}<small>${val}</small></button>`;
+      return `<button type="button" class="${cls.join(' ')}"${taken ? ' disabled style="opacity:.4"' : ` data-cat="${i + 1}"`}>${categoryLabel(rid)}<small>${taken ? t.powerTaken : val}</small></button>`;
     }).join('');
+    const showStep1 = slot.kind === 'extra';
 
     backdrop = document.createElement('div');
     backdrop.className = 'picker-backdrop';
     backdrop.innerHTML = `
       <div class="picker" role="dialog" aria-modal="true">
         <div class="head"><div class="title">${title}</div><div class="col">${slot.icon} ${currentLang === 'en' ? slot.labelEn : slot.labelFr}</div></div>
-        <div id="powerStep1">
+        <div id="powerStep1"${showStep1 ? '' : ' style="display:none"'}>
           <div class="chips powers" style="grid-template-columns:1fr 1fr">
             <button type="button" class="chip${cur === GOLD ? ' current' : ''}" data-power="gold">${t.powerGold}<small style="display:block;font-size:10px;font-weight:600;opacity:.75">${t.powerGoldHint}</small></button>
             <button type="button" class="chip${cur > 0 && cur !== GOLD ? ' current' : ''}" data-power="dbl">${t.powerDbl}<small style="display:block;font-size:10px;font-weight:600;opacity:.75">${t.powerDblHint}</small></button>
           </div>
         </div>
-        <div id="powerStep2" style="display:none">
+        <div id="powerStep2"${showStep1 ? ' style="display:none"' : ''}>
           <div class="hint">${t.powerPickCat}</div>
           <div class="chips cats">${catChips}</div>
         </div>
@@ -2443,6 +2484,25 @@
       : mode === 'yamio' ? t.opponentModeYamio : t.opponentModeYum;
     const displayName = player || (currentLang === 'fr' ? 'Adversaire' : 'Opponent');
 
+    // Chances of winning: my sheet in the same mode vs the shared one.
+    let winHtml = '';
+    const estimate = window.yumCardMP && window.yumCardMP.winEstimate;
+    if (estimate && anyScore) {
+      const toNum = (o) => {
+        const r = {};
+        Object.keys(o).forEach(k => { const v = parseInt(o[k], 10); if (!isNaN(v)) r[k] = v; });
+        return r;
+      };
+      const pct = Math.round(estimate(toNum(collectSheetCells()), toNum(cells), mode) * 100);
+      winHtml = `
+        <div class="opp-win">
+          <div class="opp-win-label">${t.winLabel}</div>
+          <div class="opp-win-bar"><div style="width:${pct}%"></div></div>
+          <div class="opp-win-nums"><span>${t.winYou} ${pct} %</span><span>${escapeHtml(displayName)} ${100 - pct} %</span></div>
+          <div class="opp-win-hint">${t.winHint}</div>
+        </div>`;
+    }
+
     const colsHtml = totals.perCol.map((v, i) => {
       const cls = v > 0 ? 'opp-col' : 'opp-col empty';
       return `<div class="${cls}"><span class="col-num">${i + 1}</span><span class="col-total">${v}</span></div>`;
@@ -2459,6 +2519,7 @@
         </div>
         <div class="opp-mode">${modeLabel}</div>
         ${anyScore ? `<div class="opp-cols">${colsHtml}</div>` : `<div class="popup-body">${t.opponentEmpty}</div>`}
+        ${winHtml}
         <div class="share-actions">
           <button type="button" data-action="import" class="primary">${t.opponentImport}</button>
         </div>
