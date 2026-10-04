@@ -134,6 +134,31 @@
     });
   }
   function now() { return Date.now(); }
+  // Line icons (stroke = text colour) for buttons and messages — no emoji.
+  var UI_ICONS = {
+    search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+    plus: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+    link: '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>',
+    share: '<path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/>',
+    copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+    dice: '<rect x="3" y="3" width="18" height="18" rx="4"/><g fill="currentColor" stroke="none"><circle cx="8" cy="8" r="1.6"/><circle cx="16" cy="8" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="8" cy="16" r="1.6"/><circle cx="16" cy="16" r="1.6"/></g>',
+    flag: '<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
+    refresh: '<path d="M20 11a8 8 0 0 0-14.5-4.5L3 9"/><path d="M3 4v5h5"/><path d="M4 13a8 8 0 0 0 14.5 4.5L21 15"/><path d="M21 20v-5h-5"/>',
+    hourglass: '<path d="M7 3h10v3l-4 6 4 6v3H7v-3l4-6-4-6z"/>',
+    check: '<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
+    back: '<path d="M19 12H5"/><path d="M11 18l-6-6 6-6"/>',
+    eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    crown: '<path d="M3 18h18l1-11-5.5 4L12 4l-4.5 7L2 7z"/>',
+    trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3"/>',
+    frown: '<circle cx="12" cy="12" r="9"/><path d="M9 9h.01M15 9h.01"/><path d="M16 16a4 4 0 0 0-8 0"/>',
+    tie: '<circle cx="12" cy="12" r="9"/><path d="M8 10h8M8 14h8"/>',
+    warn: '<path d="M12 3l10 18H2z"/><path d="M12 9v5M12 17h.01"/>',
+    exit: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
+    zap: '<path d="M13 2L3 14h8l-1 8 10-12h-8z"/>'
+  };
+  function ui(name) {
+    return '<svg class="mp-ico" viewBox="0 0 24 24" aria-hidden="true">' + (UI_ICONS[name] || '') + '</svg>';
+  }
   function randCode() {
     var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
     var s = '';
@@ -321,6 +346,12 @@
     css.textContent = [
       '#mpFab{position:fixed;right:14px;bottom:14px;z-index:900;background:var(--green,#2f6a5a);color:#fff;border:none;border-radius:999px;padding:12px 18px;font-size:14px;font-weight:800;box-shadow:0 4px 14px rgba(0,0,0,.28);cursor:pointer;display:flex;align-items:center;gap:8px}',
       '#mpFab:active{transform:scale(.97)}',
+      '.mp-ico{width:1.1em;height:1.1em;vertical-align:-.18em;margin-right:6px;display:inline-block;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}',
+      '.mp-card .crown .mp-ico{width:22px;height:22px;margin:0;fill:#f4c842;stroke:#b8860b;stroke-width:1}',
+      '.mp-gameover .mp-ico{width:1.3em;height:1.3em}',
+      '.mp-toast .mp-ico{width:1.1em;height:1.1em;stroke-width:2.2}',
+      '#mpFab .mp-ico{margin-right:2px}',
+      '.mp-live-bar .view .mp-ico{margin-right:4px;stroke-width:2.4}',
       '#mpFab .dot{width:9px;height:9px;border-radius:50%;background:#ffd24a;box-shadow:0 0 0 0 rgba(255,210,74,.7);animation:mpPulse 1.8s infinite}',
       '@keyframes mpPulse{0%{box-shadow:0 0 0 0 rgba(255,210,74,.6)}70%{box-shadow:0 0 0 8px rgba(255,210,74,0)}100%{box-shadow:0 0 0 0 rgba(255,210,74,0)}}',
       '.mp-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(20,30,26,.55);display:none;align-items:flex-end;justify-content:center}',
@@ -487,9 +518,9 @@
     $('mpLiveOpp').innerHTML =
       '<span class="sc' + (og > me.grand ? ' lead' : '') + '">' + og + '</span>' +
       '<span class="nm">' + esc(oppData.name || T('Adversaire', 'Opponent')) + '</span>';
-    $('mpLiveView').textContent = oppData.disconnected
-      ? '⏳ ' + T('Reconnexion ', 'Reconnecting ') + reconnectLeftSec() + ' s'
-      : '👁 ' + T('Voir sa carte', 'View their card');
+    $('mpLiveView').innerHTML = oppData.disconnected
+      ? ui('hourglass') + T('Reconnexion ', 'Reconnecting ') + reconnectLeftSec() + ' s'
+      : ui('eye') + T('Voir sa carte', 'View their card');
   }
   function openOpponentSheet() {
     detailsOpen = true;
@@ -538,9 +569,9 @@
                                'Race an opponent and watch each other\'s sheet live. All 3 cards (Yum, Yahtzee, Yamio) count — switch mode any time.') + '</p>' +
       '<div class="mp-field"><label>' + T('Ton nom', 'Your name') + '</label>' +
         '<div class="mp-row"><input id="mpName" type="text" maxlength="14" value="' + esc(myName) + '" placeholder="' + T('Joueur', 'Player') + '"></div></div>' +
-      '<button class="mp-btn primary" id="mpFindBtn">🔎 ' + T('Trouver un adversaire', 'Find a match') + '</button>' +
+      '<button class="mp-btn primary" id="mpFindBtn">' + ui('search') + T('Trouver un adversaire', 'Find a match') + '</button>' +
       '<div class="mp-divider">' + T('OU', 'OR') + '</div>' +
-      '<button class="mp-btn accent" id="mpCreateBtn">➕ ' + T('Créer un code d\'ami', 'Create a friend code') + '</button>' +
+      '<button class="mp-btn accent" id="mpCreateBtn">' + ui('plus') + T('Créer un code d\'ami', 'Create a friend code') + '</button>' +
       '<div class="mp-row"><input id="mpCodeInput" type="text" maxlength="5" placeholder="' + T('CODE', 'CODE') + '" autocomplete="off">' +
         '<button class="mp-btn ghost" id="mpJoinBtn" style="width:auto;margin-top:0;padding:12px 16px">' + T('Rejoindre', 'Join') + '</button></div>' +
       '<div class="mp-err" id="mpErr"></div>' +
@@ -598,9 +629,9 @@
                                'Have your friend scan this QR code or share the link. The invite is valid for 5 days: the match starts once your friend joins and you are both online.') + '</p>' +
       '<div class="mp-qr" id="mpQr"><div class="mp-spin"></div></div>' +
       '<div class="mp-code-big" id="mpBigCode">' + esc(code) + '</div>' +
-      '<button class="mp-btn accent" id="mpCopyLinkBtn">🔗 ' + T('Copier le lien', 'Copy link') + '</button>' +
-      (canShare ? '<button class="mp-btn ghost" id="mpShareBtn">📤 ' + T('Partager l\'invitation', 'Share invite') + '</button>' : '') +
-      '<button class="mp-btn ghost" id="mpCopyBtn">📋 ' + T('Copier le code', 'Copy code') + '</button>' +
+      '<button class="mp-btn accent" id="mpCopyLinkBtn">' + ui('link') + T('Copier le lien', 'Copy link') + '</button>' +
+      (canShare ? '<button class="mp-btn ghost" id="mpShareBtn">' + ui('share') + T('Partager l\'invitation', 'Share invite') + '</button>' : '') +
+      '<button class="mp-btn ghost" id="mpCopyBtn">' + ui('copy') + T('Copier le code', 'Copy code') + '</button>' +
       '<div class="mp-err" id="mpErr"></div>' +
       '<div class="mp-center"><div class="mp-status">' + T('En attente de l\'adversaire…', 'Waiting for opponent…') +
         (expTxt ? '<br>' + T('Expire ', 'Expires ') + esc(expTxt) : '') + '</div></div>' +
@@ -612,7 +643,7 @@
         ? navigator.clipboard.writeText(text) : Promise.reject(new Error('clipboard'));
       p.then(function () {
         var old = btn.innerHTML;
-        btn.textContent = '✓ ' + T('Copié', 'Copied');
+        btn.innerHTML = ui('check') + T('Copié', 'Copied');
         setTimeout(function () { btn.innerHTML = old; }, 1600);
       }).catch(function () { window.prompt(T('Copie ce texte :', 'Copy this text:'), text); });
     }
@@ -729,10 +760,10 @@
       '<div class="mp-win" id="mpWin"></div>' +
       '<button class="mp-toggle" id="mpDetailsToggle">' + detailsToggleLabel() + '</button>' +
       '<div class="mp-details" id="mpDetails"></div>' +
-      '<button class="mp-btn primary" id="mpBackBtn">⬅ ' + T('Retour à ma carte', 'Back to my card') + '</button>' +
+      '<button class="mp-btn primary" id="mpBackBtn">' + ui('back') + T('Retour à ma carte', 'Back to my card') + '</button>' +
       '<button class="mp-btn primary" id="mpRematchBtn" style="display:none"></button>' +
       '<button class="mp-btn accent" id="mpDoneBtn"></button>' +
-      '<button class="mp-btn ghost" id="mpNewBtn">🔎 ' + T('Nouvel adversaire', 'New opponent') + '</button>' +
+      '<button class="mp-btn ghost" id="mpNewBtn">' + ui('search') + T('Nouvel adversaire', 'New opponent') + '</button>' +
       '<button class="mp-btn danger" id="mpLeaveBtn">' + T('Quitter', 'Leave') + '</button>';
     $('mpCloseBtn').addEventListener('click', closePanel);
     $('mpDetailsToggle').addEventListener('click', function () {
@@ -765,22 +796,22 @@
 
     var meCard =
       '<div class="mp-card' + (meLead ? ' lead' : '') + '">' +
-        (meLead ? '<span class="crown">👑</span>' : '') +
+        (meLead ? '<span class="crown">' + ui('crown') + '</span>' : '') +
         '<div class="who">' + esc(myName) + ' (' + T('toi', 'you') + ')</div>' +
         '<div class="tot">' + me.grand + '</div>' +
         '<div class="sub">' + perModeLine(me.per) + '</div>' +
-        (iAmDone ? '<span class="badge done">✓ ' + T('Terminé', 'Done') + '</span>' : '') +
+        (iAmDone ? '<span class="badge done">' + ui('check') + T('Terminé', 'Done') + '</span>' : '') +
       '</div>';
 
     var oppCard;
     if (opp) {
       oppCard =
         '<div class="mp-card' + (oppLead ? ' lead' : '') + '">' +
-          (oppLead ? '<span class="crown">👑</span>' : '') +
+          (oppLead ? '<span class="crown">' + ui('crown') + '</span>' : '') +
           '<div class="who">' + esc(opp.name || T('Adversaire', 'Opponent')) + '</div>' +
           '<div class="tot">' + (opp.grand || 0) + '</div>' +
           '<div class="sub">' + perModeLine(opp.per) + '</div>' +
-          ((opp.done || opp.filledAll) ? '<span class="badge done">✓ ' + T('Terminé', 'Done') + '</span>' : '') +
+          ((opp.done || opp.filledAll) ? '<span class="badge done">' + ui('check') + T('Terminé', 'Done') + '</span>' : '') +
         '</div>';
     } else {
       oppCard =
@@ -808,10 +839,10 @@
         var tie = me.grand === (opp.grand || 0);
         banner.className = 'mp-gameover show ' + (tie ? 'tie' : (iWin ? 'win' : 'lose'));
         banner.innerHTML = tie
-          ? '🤝 ' + T('Match nul ! ', 'It\'s a tie! ') + me.grand + ' – ' + (opp.grand || 0)
+          ? ui('tie') + T('Match nul ! ', 'It\'s a tie! ') + me.grand + ' – ' + (opp.grand || 0)
           : (iWin
-              ? '🎉 ' + T('Tu gagnes ', 'You win ') + me.grand + ' – ' + (opp.grand || 0) + ' !'
-              : '😔 ' + T('Tu perds ', 'You lose ') + me.grand + ' – ' + (opp.grand || 0));
+              ? ui('trophy') + T('Tu gagnes ', 'You win ') + me.grand + ' – ' + (opp.grand || 0) + ' !'
+              : ui('frown') + T('Tu perds ', 'You lose ') + me.grand + ' – ' + (opp.grand || 0));
       } else {
         banner.className = 'mp-gameover';
         banner.innerHTML = '';
@@ -840,9 +871,9 @@
     var doneBtn = $('mpDoneBtn');
     if (doneBtn) {
       doneBtn.style.display = (over || me.allFilled) ? 'none' : 'block';
-      doneBtn.textContent = iAmDone
+      doneBtn.innerHTML = iAmDone
         ? T('Annuler « Terminé »', 'Undo "Done"')
-        : '🏁 ' + T('J\'ai terminé', 'I\'m done');
+        : ui('flag') + T('J\'ai terminé', 'I\'m done');
     }
 
     // Rematch: offered once there is a live opponent; prominent at game over.
@@ -857,15 +888,15 @@
       } else if (rematchVoted || myPending) {
         reBtn.style.display = 'block';
         reBtn.disabled = true;
-        reBtn.textContent = '⏳ ' + T('En attente de l\'adversaire…', 'Waiting for opponent…');
+        reBtn.innerHTML = ui('hourglass') + T('En attente de l\'adversaire…', 'Waiting for opponent…');
       } else if (theirPending) {
         reBtn.style.display = 'block';
         reBtn.disabled = false;
-        reBtn.textContent = '🔄 ' + T('L\'adversaire veut rejouer — accepter', 'Opponent wants a rematch — accept');
+        reBtn.innerHTML = ui('refresh') + T('L\'adversaire veut rejouer — accepter', 'Opponent wants a rematch — accept');
       } else {
         reBtn.style.display = 'block';
         reBtn.disabled = false;
-        reBtn.textContent = '🔄 ' + T('Revanche (même adversaire)', 'Rematch (same opponent)');
+        reBtn.innerHTML = ui('refresh') + T('Revanche (même adversaire)', 'Rematch (same opponent)');
       }
     }
 
@@ -1246,7 +1277,7 @@
   }
   function showStartToast() {
     var oppN = (oppData && oppData.name) || T('Adversaire', 'Opponent');
-    showToast('🎲 ' + T('Partie commencée !', 'Match started!'),
+    showToast(ui('dice') + T('Partie commencée !', 'Match started!'),
       esc(myName) + ' vs ' + esc(oppN) + ' — ' + T('Bonne chance !', 'Good luck!'), 3000);
   }
 
@@ -1266,7 +1297,7 @@
   function startReconnectWatch() {
     if (reconnectTimer) return;
     var oppN = esc((oppData && oppData.name) || T('L\'adversaire', 'Your opponent'));
-    showToast('⚠️ ' + T(oppN + ' s\'est déconnecté', oppN + ' disconnected'),
+    showToast(ui('warn') + T(oppN + ' s\'est déconnecté', oppN + ' disconnected'),
       T('Il a 1 minute pour revenir…', 'They have 1 minute to come back…'), 3500, 'warn');
     reconnectTimer = setInterval(function () {
       if (!mmActive || !oppData || !oppData.disconnected) { stopReconnectWatch(); return; }
@@ -1288,7 +1319,7 @@
     try { if (myPlayerRef) myPlayerRef.onDisconnect().cancel(); } catch (e) {}
     if (db && code) db.ref(ROOMS + '/' + code).remove().catch(function () {});
     leaveAll(false);
-    showToast('🚪 ' + T('Partie fermée', 'Match closed'), reason, 4500, 'warn');
+    showToast(ui('exit') + T('Partie fermée', 'Match closed'), reason, 4500, 'warn');
     var b = $('mpBackdrop');
     if (b && b.classList.contains('show')) { renderLobby(); showErr(reason.replace(/<[^>]+>/g, '')); }
   }
@@ -1321,7 +1352,7 @@
         if (closed || late) {
           forgetMatch();
           if (room) ref.remove().catch(function () {});
-          showToast('🚪 ' + T('Partie fermée', 'Match closed'),
+          showToast(ui('exit') + T('Partie fermée', 'Match closed'),
             late ? T('Délai de reconnexion dépassé (1 min).', 'Reconnect window expired (1 min).')
                  : T('Ton adversaire a quitté la partie.', 'Your opponent left the match.'), 4500, 'warn');
           return;
@@ -1337,7 +1368,7 @@
         saveMatch();
         startScoreSync();
         updateFabState();
-        showToast('🔌 ' + T('Reconnecté !', 'Reconnected!'), T('La partie continue.', 'The match goes on.'), 3000);
+        showToast(ui('zap') + T('Reconnecté !', 'Reconnected!'), T('La partie continue.', 'The match goes on.'), 3000);
       });
     }).catch(function (e) {
       console.warn('[yumcard-mp] resume match failed:', e);
@@ -1364,7 +1395,7 @@
           '<div class="chip" id="mpOppChip">' + T('En attente', 'Pending') + '</div></div>' +
       '</div>' +
       '<div class="mp-ready-count">' + T('Temps restant : ', 'Time left: ') + '<span id="mpReadyCountdown">30s</span></div>' +
-      '<button class="mp-btn primary" id="mpAcceptBtn">🎲 ' + T('Commencer la partie', 'Start the match') + '</button>' +
+      '<button class="mp-btn primary" id="mpAcceptBtn">' + ui('dice') + T('Commencer la partie', 'Start the match') + '</button>' +
       '<button class="mp-btn danger" id="mpDeclineBtn">' + T('Refuser', 'Decline') + '</button>';
     $('mpCloseBtn').addEventListener('click', closePanel);
     $('mpAcceptBtn').addEventListener('click', function () { acceptMatch(); });
@@ -1379,10 +1410,10 @@
     if (oppChip) { oppChip.textContent = oppReady ? T('Prêt ✓', 'Ready ✓') : T('En attente', 'Pending'); oppChip.classList.toggle('ready', oppReady); }
     if (acc) {
       acc.disabled = meReady;
-      var oppN = (oppData && oppData.name) || T('l\'adversaire', 'opponent');
-      acc.textContent = meReady
-        ? '⏳ ' + T('En attente que ' + oppN + ' commence…', 'Waiting for ' + oppN + ' to start…')
-        : '🎲 ' + T('Commencer la partie', 'Start the match');
+      var oppN = esc((oppData && oppData.name) || T('l\'adversaire', 'opponent'));
+      acc.innerHTML = meReady
+        ? ui('hourglass') + T('En attente que ' + oppN + ' commence…', 'Waiting for ' + oppN + ' to start…')
+        : ui('dice') + T('Commencer la partie', 'Start the match');
     }
   }
   function startReadyCountdown() {
@@ -1494,7 +1525,7 @@
     } else if (mmActive && matchPhase === 'playing' && oppData && !oppData.gone) {
       var me = readMyScore();
       if (oppData.disconnected) {
-        label.textContent = '⏳ ' + (oppData.name || T('Adv.', 'Opp.')) + ' ' + reconnectLeftSec() + ' s';
+        label.innerHTML = ui('hourglass') + esc(oppData.name || T('Adv.', 'Opp.')) + ' ' + reconnectLeftSec() + ' s';
       } else {
         label.textContent = T('Toi', 'You') + ' ' + me.grand + ' · ' + (oppData.grand || 0) + ' ' +
           (oppData.name || T('Adv.', 'Opp.'));
