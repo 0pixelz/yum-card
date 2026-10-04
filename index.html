@@ -2486,7 +2486,12 @@
     });
   }
 
-  inviteBtn.addEventListener('click', openInvitePopup);
+  // Same friend-code / QR invite as the multiplayer panel; the snapshot-link
+  // popup only remains as a fallback if multiplayer.js failed to load.
+  inviteBtn.addEventListener('click', () => {
+    if (window.yumCardMP && typeof window.yumCardMP.invite === 'function') window.yumCardMP.invite();
+    else openInvitePopup();
+  });
 
   function openOpponentPopup(payload) {
     closePicker();
