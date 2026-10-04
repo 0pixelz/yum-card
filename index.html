@@ -1407,16 +1407,16 @@
     POWER_SLOTS.forEach(s => { const el = document.getElementById(s.id + '-' + c); if (el) cells[s.id + '-' + c] = el.value; });
     return multFromCells(cells, rowId, c, currentMode, LOWER_ROWS);
   }
-  // Column total from a cells map (upper bonus on raw values, ×2 applied to points).
+  // Column total from a cells map (×2 counts toward the 63 bonus as well).
   function columnTotalFromCells(cells, c, mode, rows) {
     const bonusValue = mode === 'yum' ? 25 : 35;
-    let sub = 0, subPts = 0;
+    let sub = 0;
     for (let i = 1; i <= 6; i++) {
       const v = parseInt(cells['u' + i + '-' + c], 10);
-      if (!isNaN(v)) { sub += v; subPts += v * multFromCells(cells, 'u' + i, c, mode, rows); }
+      if (!isNaN(v)) sub += v * multFromCells(cells, 'u' + i, c, mode, rows);
     }
     const bonus = sub >= 63 ? bonusValue : 0;
-    const upper = (subPts > 0 || bonus > 0) ? subPts + bonus : 0;
+    const upper = (sub > 0 || bonus > 0) ? sub + bonus : 0;
     let lower = 0;
     rows.forEach(r => {
       const v = parseInt(cells[r.id + '-' + c], 10);
@@ -1427,7 +1427,7 @@
   function slotUnlocked(slotId, c) {
     if (slotId === 'x1') {
       let sub = 0;
-      for (let n = 1; n <= 6; n++) sub += getNum(`u${n}-${c}`);
+      for (let n = 1; n <= 6; n++) sub += getNum(`u${n}-${c}`) * cellMult(`u${n}`, c);
       return sub >= 63;
     }
     if (slotId === 'x2') return COMBO_ROWS.every(rid => getNum(`${rid}-${c}`) > 0);
@@ -1905,13 +1905,11 @@
     let bestTotal = -1;
     const totals = [];
     for (let c = 1; c <= PLAYER_COUNT; c++) {
-      // Upper subtotal (bonus is judged on raw values; a ×2 category adds points)
-      let sub = 0, subPts = 0;
-      for (let n = 1; n <= 6; n++) {
-        const v = getNum(`u${n}-${c}`);
-        sub += v; subPts += v * cellMult(`u${n}`, c);
-      }
-      setComputed(`uSub-${c}`, subPts);
+      // Upper subtotal — a ×2 category counts double here too, so the 63 bonus
+      // (and the Yamio extra it unlocks) can be reached with a doubled box.
+      let sub = 0;
+      for (let n = 1; n <= 6; n++) sub += getNum(`u${n}-${c}`) * cellMult(`u${n}`, c);
+      setComputed(`uSub-${c}`, sub);
 
       // Bonus — always show how many points are still needed to reach 63.
       const bonusValue = bonusFor();
@@ -1936,7 +1934,7 @@
       }
 
       // Upper total
-      const upperTotal = subPts > 0 || bonus > 0 ? subPts + bonus : 0;
+      const upperTotal = sub > 0 || bonus > 0 ? sub + bonus : 0;
       setComputed(`uTotal-${c}`, upperTotal);
       setComputed(`uTotalCarry-${c}`, upperTotal);
 
