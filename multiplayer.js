@@ -181,18 +181,14 @@
     yahtzee: ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'l3k', 'l4k', 'lfh', 'lss', 'lls', 'lyahtzee', 'lchance']
   };
   REQUIRED.yamio = REQUIRED.yahtzee; // same card; power-ups are optional
-  // Whole-sheet read: the score is the sum of ALL 6 columns (this matches the
-  // total yum-card itself shows on the sheet tabs), and `cells` carries every
-  // editable entry across all columns keyed by its input id ("u1-1", "l3k-4", …)
-  // so the opponent can mirror the full six-column sheet.
-  function readMyScore() {
-    var grand = 0, upper = 0, lower = 0;
-    var grands = [];
-    for (var c = 1; c <= 6; c++) {
-      var g = intOf($('grand-' + c));
-      grand += g; upper += intOf($('uTotal-' + c)); lower += intOf($('lTotal-' + c));
-      grands.push(g);
-    }
+  // All three cards (Yum, Yahtzee, Yamio) are in play at once. The card of the
+  // mode currently shown is read from the DOM; the other two come from the
+  // sheet storage yum-card keeps up to date on every entry. Match score = sum
+  // of the three cards; `sheets` carries every editable entry of each card
+  // keyed by input id ("u1-1", "l3k-4", "d1-2", …) so the opponent can mirror
+  // whichever card they are looking at.
+  var MODES = ['yum', 'yahtzee', 'yamio'];
+  function readDomCells() {
     var cells = {};
     var inputs = document.querySelectorAll('td.input-cell[data-cell] input');
     for (var i = 0; i < inputs.length; i++) {
@@ -202,15 +198,53 @@
         cells[inp.id] = isNaN(v) ? 0 : v;   // key includes the column, e.g. "u6-3"
       }
     }
-    // "Complete" = every required category filled in every one of the 6 columns.
-    var req = REQUIRED[currentMode()] || REQUIRED.yum;
-    var allFilled = true;
+    return cells;
+  }
+  function readStoredCells(m) {
+    try {
+      var n = parseInt(localStorage.getItem('yum-card-' + m + '-v2-active'), 10);
+      if (!(n >= 1 && n <= 5)) n = 1;
+      var raw = localStorage.getItem('yum-card-' + m + '-v2-sheet-' + n);
+      var src = (raw && JSON.parse(raw).cells) || {};
+      var cells = {};
+      Object.keys(src).forEach(function (k) { var v = parseInt(src[k], 10); if (!isNaN(v)) cells[k] = v; });
+      return cells;
+    } catch (e) { return {}; }
+  }
+  // Totals of one card (numeric cells map) in mode m over its 6 columns.
+  // "Complete" = every required category filled in every column.
+  function sheetTotals(cells, m) {
+    var grand = 0, upper = 0, lower = 0;
+    for (var c = 1; c <= 6; c++) {
+      var t = colTotals(cells, c, m);
+      grand += t.grand; upper += t.upper; lower += t.lower;
+    }
+    var req = REQUIRED[m] || REQUIRED.yum, allFilled = true;
     for (var cc = 1; cc <= 6 && allFilled; cc++) {
       for (var r = 0; r < req.length; r++) {
         if (!cells.hasOwnProperty(req[r] + '-' + cc)) { allFilled = false; break; }
       }
     }
-    return { grand: grand, upper: upper, lower: lower, grands: grands, cells: cells, allFilled: allFilled };
+    return { grand: grand, upper: upper, lower: lower, allFilled: allFilled, started: Object.keys(cells).length > 0 };
+  }
+  function readMyScore() {
+    var cur = currentMode();
+    var sheets = {}, per = {};
+    var grand = 0, upper = 0, lower = 0, allFilled = true;
+    MODES.forEach(function (m) {
+      sheets[m] = m === cur ? readDomCells() : readStoredCells(m);
+      per[m] = sheetTotals(sheets[m], m);
+      grand += per[m].grand; upper += per[m].upper; lower += per[m].lower;
+      if (!per[m].allFilled) allFilled = false;
+    });
+    return { grand: grand, upper: upper, lower: lower, cells: sheets[cur], sheets: sheets, per: per, allFilled: allFilled };
+  }
+  // Per-mode breakdown line shown under a player's total.
+  function perModeLine(per) {
+    return MODES.map(function (m) { return modeName(m) + ' ' + ((per && per[m]) ? per[m].grand : 0); }).join(' · ');
+  }
+  function oppCells() {
+    return (oppData && oppData.sheets && oppData.sheets[currentMode()]) || {};
   }
   // Clear the local player's WHOLE sheet (all columns) and persist it, without
   // reaching into the game IIFE: blank the editable cells, then poke
@@ -500,8 +534,8 @@
     s.innerHTML =
       '<h2>' + T('Jouer en ligne', 'Play online') +
         '<button class="mp-close" id="mpCloseBtn" aria-label="Close">×</button></h2>' +
-      '<p class="mp-sub">' + T('Affronte un adversaire et voyez vos feuilles en direct.',
-                               'Race an opponent and watch each other\'s sheet live.') + '</p>' +
+      '<p class="mp-sub">' + T('Affronte un adversaire et voyez vos feuilles en direct. Les 3 cartes (Yum, Yahtzee, Yamio) comptent — change de mode quand tu veux.',
+                               'Race an opponent and watch each other\'s sheet live. All 3 cards (Yum, Yahtzee, Yamio) count — switch mode any time.') + '</p>' +
       '<div class="mp-field"><label>' + T('Ton nom', 'Your name') + '</label>' +
         '<div class="mp-row"><input id="mpName" type="text" maxlength="14" value="' + esc(myName) + '" placeholder="' + T('Joueur', 'Player') + '"></div></div>' +
       '<button class="mp-btn primary" id="mpFindBtn">🔎 ' + T('Trouver un adversaire', 'Find a match') + '</button>' +
@@ -708,6 +742,12 @@
       paintScoreboard();
     });
     $('mpBackBtn').addEventListener('click', closePanel);
+    $('mpDetails').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-mp-mode]');
+      if (!b) return;
+      var t = document.querySelector('#modeToggle [data-mode="' + b.getAttribute('data-mp-mode') + '"]');
+      if (t) t.click();   // the sheet switches; the modeToggle listener repaints us
+    });
     $('mpRematchBtn').addEventListener('click', function () { requestRematch(); });
     $('mpDoneBtn').addEventListener('click', function () { toggleDone(); });
     $('mpNewBtn').addEventListener('click', function () { leaveAll(true); startFind(); });
@@ -728,7 +768,7 @@
         (meLead ? '<span class="crown">👑</span>' : '') +
         '<div class="who">' + esc(myName) + ' (' + T('toi', 'you') + ')</div>' +
         '<div class="tot">' + me.grand + '</div>' +
-        '<div class="sub">' + T('Haut', 'Upper') + ' ' + me.upper + ' · ' + T('Bas', 'Lower') + ' ' + me.lower + '</div>' +
+        '<div class="sub">' + perModeLine(me.per) + '</div>' +
         (iAmDone ? '<span class="badge done">✓ ' + T('Terminé', 'Done') + '</span>' : '') +
       '</div>';
 
@@ -739,7 +779,7 @@
           (oppLead ? '<span class="crown">👑</span>' : '') +
           '<div class="who">' + esc(opp.name || T('Adversaire', 'Opponent')) + '</div>' +
           '<div class="tot">' + (opp.grand || 0) + '</div>' +
-          '<div class="sub">' + T('Haut', 'Upper') + ' ' + (opp.upper || 0) + ' · ' + T('Bas', 'Lower') + ' ' + (opp.lower || 0) + '</div>' +
+          '<div class="sub">' + perModeLine(opp.per) + '</div>' +
           ((opp.done || opp.filledAll) ? '<span class="badge done">✓ ' + T('Terminé', 'Done') + '</span>' : '') +
         '</div>';
     } else {
@@ -883,11 +923,18 @@
   }
   function winProbability(me, opp, over) {
     if (over) return me.grand > (opp.grand || 0) ? 1 : me.grand < (opp.grand || 0) ? 0 : 0.5;
-    var m = currentMode();
-    var a = projectSheet(me.cells || {}, m), b = projectSheet(opp.cells || {}, m);
-    var s = Math.sqrt(a.variance + b.variance);
-    if (s === 0) return a.mean > b.mean ? 1 : a.mean < b.mean ? 0 : 0.5;
-    return normCdf((a.mean - b.mean) / s);
+    // Sum the projections of the cards at least one player has started; an
+    // untouched card is assumed to stay untouched by both.
+    var meM = 0, meV = 0, opM = 0, opV = 0;
+    MODES.forEach(function (m) {
+      var mc = (me.sheets || {})[m] || {}, oc = (opp.sheets || {})[m] || {};
+      if (!Object.keys(mc).length && !Object.keys(oc).length) return;
+      var a = projectSheet(mc, m), b = projectSheet(oc, m);
+      meM += a.mean; meV += a.variance; opM += b.mean; opV += b.variance;
+    });
+    var s = Math.sqrt(meV + opV);
+    if (s === 0) return meM > opM ? 1 : meM < opM ? 0 : 0.5;
+    return normCdf((meM - opM) / s);
   }
   function paintWin(me, opp, over) {
     var box = $('mpWin');
@@ -956,7 +1003,7 @@
     if (!box) return;
     if (!opp) { box.innerHTML = '<div class="mp-sheet-empty">' + T('En attente de l\'adversaire…', 'Waiting for opponent…') + '</div>'; return; }
     var m = currentMode();
-    var cells = opp.cells || {};
+    var cells = oppCells();   // the opponent's card for the mode I'm looking at
     var upperRows = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6'];
     var lowerRows = LOWER_ORDER[m];
 
@@ -982,7 +1029,12 @@
       return '<tr class="' + cls + '"><td class="cat">' + label + '</td>' + tds + '</tr>';
     }
 
-    var html = '<div class="mp-sheet-scroll"><table class="mp-mini"><thead><tr>' + headCells() + '</tr></thead><tbody>';
+    // Card switcher: also switches my own sheet (the app's mode), so the
+    // panel always shows the opponent's card for the mode I'm playing.
+    var html = '<div class="mp-colsel mp-modesel">' + MODES.map(function (mm) {
+      return '<button type="button" data-mp-mode="' + mm + '"' + (mm === m ? ' class="on"' : '') + '>' + modeName(mm).toUpperCase() + '</button>';
+    }).join('') + '</div>';
+    html += '<div class="mp-sheet-scroll"><table class="mp-mini"><thead><tr>' + headCells() + '</tr></thead><tbody>';
     upperRows.forEach(function (rid) { html += bodyRow(rid); });
     html += computedRow(T('Boni', 'Bonus'), function (t) { return t.bonus; }, 'sum');
     lowerRows.forEach(function (rid) { html += bodyRow(rid); });
@@ -999,13 +1051,17 @@
     html += computedRow(T('TOTAL', 'TOTAL'), function (t) { return t.grand; }, 'grand');
     html += '</tbody></table></div>' +
       '<div class="mp-sheet-cap">' + esc(opp.name || T('Adversaire', 'Opponent')) +
-      ' — ' + T('total', 'total') + ' ' + (opp.grand || 0) + '</div>';
+      ' — ' + modeName(m) + ' : ' + ((opp.per && opp.per[m]) ? opp.per[m].grand : 0) +
+      ' · ' + T('3 cartes', '3 cards') + ' : ' + (opp.grand || 0) + '</div>' +
+      '<div class="mp-note" style="text-align:center;margin-top:4px">' +
+        T('Change de mode (YUM / YAHTZEE / YAMIO) pour voir ses autres cartes.',
+          'Switch mode (YUM / YAHTZEE / YAMIO) to see their other cards.') + '</div>';
     box.innerHTML = html;
   }
 
   // ── Score sync ──────────────────────────────────────────────────────────────
   function scoreSig(sc) {
-    return sc.grand + '|' + sc.upper + '|' + sc.lower + '|' + JSON.stringify(sc.cells) +
+    return sc.grand + '|' + sc.upper + '|' + sc.lower + '|' + JSON.stringify(sc.sheets) +
       '|' + (iAmDone ? 1 : 0) + '|' + (sc.allFilled ? 1 : 0);
   }
   function pushScore() {
@@ -1023,8 +1079,14 @@
     }
     lastPushSig = sig;
     lastPushAt = now();
-    var cellsStr = JSON.stringify(sc.cells);
-    if (cellsStr.length > 3900) cellsStr = '{}';
+    // Wire format v3: all three cards. If that ever gets too long for the
+    // database, send only the card currently shown.
+    var cellsStr = JSON.stringify({ v: 3, s: sc.sheets });
+    if (cellsStr.length > 3900) {
+      var one = {}; one[currentMode()] = sc.cells;
+      cellsStr = JSON.stringify({ v: 3, s: one });
+      if (cellsStr.length > 3900) cellsStr = '{}';
+    }
     myPlayerRef.update({
       grand: sc.grand, upper: sc.upper, lower: sc.lower,
       cells: cellsStr, done: !!iAmDone, filledAll: !!sc.allFilled,
@@ -1090,11 +1152,18 @@
       // kept for RECONNECT_MS); an explicit leave removes the entry instead.
       var silent = found.lastActiveAt ? now() - found.lastActiveAt : 0;
       var disc = matchPhase === 'playing' && silent > DROP_MS;
+      // v3 payload carries all three cards; an older client sends one card,
+      // which we file under the room's mode.
+      var parsed = parseCells(found.cells);
+      var sheets = (parsed && parsed.v === 3 && parsed.s && typeof parsed.s === 'object') ? parsed.s : null;
+      if (!sheets) { sheets = {}; sheets[sameCard(room.mode, 'yahtzee') ? room.mode : 'yum'] = parsed || {}; }
+      var per = {};
+      MODES.forEach(function (m) { per[m] = sheetTotals(sheets[m] || {}, m); });
       oppData = {
         name: found.name, grand: found.grand || 0, upper: found.upper || 0,
         lower: found.lower || 0, done: !!found.done, filledAll: !!found.filledAll,
         ready: !!found.ready, gone: !disc && silent > OPP_GONE_MS, disconnected: disc,
-        leftAt: disc ? found.lastActiveAt + DROP_MS : 0, cells: parseCells(found.cells)
+        leftAt: disc ? found.lastActiveAt + DROP_MS : 0, sheets: sheets, per: per
       };
     } else if (oppData) {
       oppData.gone = true;
@@ -1282,12 +1351,11 @@
     var s = $('mpSheet');
     if (!s) return;
     var oppName = (oppData && oppData.name) || T('Adversaire', 'Opponent');
-    var modeLbl = modeName(mode);
     s.innerHTML =
       '<h2>' + T('Adversaire trouvé !', 'Opponent found!') +
         '<button class="mp-close" id="mpCloseBtn">×</button></h2>' +
-      '<p class="mp-sub">' + T('La partie démarre quand vous avez tous les deux appuyé sur « Commencer ». Mode : ',
-                               'The match starts once you have both tapped "Start". Mode: ') + modeLbl + '</p>' +
+      '<p class="mp-sub">' + T('La partie démarre quand vous avez tous les deux appuyé sur « Commencer ». Les 3 cartes comptent : Yum, Yahtzee et Yamio.',
+                               'The match starts once you have both tapped "Start". All 3 cards count: Yum, Yahtzee and Yamio.') + '</p>' +
       '<div class="mp-ready">' +
         '<div class="mp-rc"><div class="who">' + esc(myName) + ' (' + T('toi', 'you') + ')</div>' +
           '<div class="chip" id="mpMeChip">' + T('En attente', 'Pending') + '</div></div>' +
@@ -1626,7 +1694,7 @@
       .filter(function (e) {
         var u = e[0], info = e[1];
         return u !== uid && info && typeof info.ts === 'number' &&
-          (t - info.ts) < STALE_MS && ((info.mode || 'yum') === wireMode()) &&
+          (t - info.ts) < STALE_MS &&
           (wantGreater ? u > uid : u < uid);
       })
       .sort(function (a, b) { return (a[1].ts || 0) - (b[1].ts || 0); });
@@ -1820,6 +1888,16 @@
     if (langToggle) langToggle.addEventListener('click', function () {
       setTimeout(function () {
         if (!mmActive) { var l = $('mpFabLabel'); if (l) l.textContent = T('Multijoueur', 'Multiplayer'); }
+      }, 0);
+    });
+    // Switching card mid-match: repaint the panel / FAB / live bar for that card
+    // (the score push itself is triggered by the sheet's own recompute).
+    var modeToggle = $('modeToggle');
+    if (modeToggle) modeToggle.addEventListener('click', function () {
+      setTimeout(function () {
+        if (!mmActive) return;
+        if ($('mpVs')) paintScoreboard();
+        updateFabState();
       }, 0);
     });
     // Closing / reloading mid-match keeps my seat for RECONNECT_MS (see resumeMatch).
