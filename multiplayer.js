@@ -567,6 +567,10 @@
         '<button class="mp-close" id="mpCloseBtn" aria-label="Close">×</button></h2>' +
       '<p class="mp-sub">' + T('Affronte un adversaire et voyez vos feuilles en direct. Les 3 cartes (Yum, Yahtzee, Yamio) comptent — change de mode quand tu veux.',
                                'Race an opponent and watch each other\'s sheet live. All 3 cards (Yum, Yahtzee, Yamio) count — switch mode any time.') + '</p>' +
+      ((inviteCode && mmActive && roomCode === inviteCode)
+        ? '<button class="mp-btn ghost" id="mpPendingBtn">' + ui('link') + T('Invitation en attente : ' + inviteCode + ' — voir le QR', 'Pending invite: ' + inviteCode + ' — show QR') + '</button>' +
+          '<p class="mp-note" style="margin-top:4px">' + T('Lancer une autre partie annulera cette invitation.', 'Starting another match cancels this invite.') + '</p>'
+        : '') +
       '<div class="mp-field"><label>' + T('Ton nom', 'Your name') + '</label>' +
         '<div class="mp-row"><input id="mpName" type="text" maxlength="14" value="' + esc(myName) + '" placeholder="' + T('Joueur', 'Player') + '"></div></div>' +
       '<button class="mp-btn primary" id="mpFindBtn">' + ui('search') + T('Trouver un adversaire', 'Find a match') + '</button>' +
@@ -579,6 +583,7 @@
                                 'Tip: each player fills their own sheet (6 columns). Your score is the sum of all 6 columns, like on the sheet. You can watch your opponent\'s full sheet live.') + '</p>';
 
     $('mpCloseBtn').addEventListener('click', closePanel);
+    if ($('mpPendingBtn')) $('mpPendingBtn').addEventListener('click', function () { renderWaitingCode(inviteCode); });
     $('mpName').addEventListener('input', function () { myName = this.value.trim() || T('Joueur', 'Player'); });
     $('mpFindBtn').addEventListener('click', function () { startFind(); });
     $('mpCreateBtn').addEventListener('click', function () { startCreateCode(); });
@@ -635,8 +640,10 @@
       '<div class="mp-err" id="mpErr"></div>' +
       '<div class="mp-center"><div class="mp-status">' + T('En attente de l\'adversaire…', 'Waiting for opponent…') +
         (expTxt ? '<br>' + T('Expire ', 'Expires ') + esc(expTxt) : '') + '</div></div>' +
+      '<button class="mp-btn ghost" id="mpMenuBtn">' + ui('back') + T('Menu multijoueur (garder l\'invitation)', 'Multiplayer menu (keep invite)') + '</button>' +
       '<button class="mp-btn danger" id="mpCancelBtn">' + T('Annuler l\'invitation', 'Cancel invite') + '</button>';
     $('mpCloseBtn').addEventListener('click', closePanel);
+    $('mpMenuBtn').addEventListener('click', renderLobby);
     var url = joinUrl(code);
     function copy(text, btn) {
       var p = (navigator.clipboard && navigator.clipboard.writeText)
@@ -698,11 +705,17 @@
     var v = readInvite();
     return v ? (v.createdAt || now()) + INVITE_TTL_MS : 0;
   }
-  function cancelInvite() {
-    var code = inviteCode || roomCode;
+  // Drop my pending invite (room deleted) — used by Cancel and before starting
+  // any other kind of match from the lobby.
+  function dropPendingInvite() {
+    if (!inviteCode) return;
+    var code = inviteCode;
     forgetInvite();
     if (db && code) db.ref(ROOMS + '/' + code).remove().catch(function () {});
-    leaveAll(true);
+    if (mmActive) leaveAll(true);
+  }
+  function cancelInvite() {
+    dropPendingInvite();
     renderLobby();
   }
   // Re-attach to my pending invite room so a friend can reach me whenever the app
@@ -1520,7 +1533,7 @@
     if (!label) return;
     if (mmActive && matchPhase === 'ready') {
       if (oppData && !oppData.gone) label.textContent = T('Adversaire trouvé', 'Opponent found');
-      else if (inviteCode && roomCode === inviteCode) label.textContent = T('Invitation · ', 'Invite · ') + inviteCode;
+      else if (inviteCode && roomCode === inviteCode) label.textContent = T('Multijoueur', 'Multiplayer') + ' · ' + inviteCode;
       else label.textContent = T('En attente', 'Waiting');
     } else if (mmActive && matchPhase === 'playing' && oppData && !oppData.gone) {
       var me = readMyScore();
@@ -1541,6 +1554,7 @@
   // ── Create / join by code ───────────────────────────────────────────────────
   function startCreateCode() {
     clearErr();
+    dropPendingInvite();
     myName = nameFromSheet();
     mode = currentMode();
     renderSearching(T('Connexion…', 'Connecting…'));
@@ -1598,6 +1612,7 @@
 
   function startJoinCode(code) {
     clearErr();
+    dropPendingInvite();
     myName = nameFromSheet();
     code = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (code.length < 4) { showErr(T('Code invalide.', 'Invalid code.')); return; }
@@ -1657,6 +1672,7 @@
   // ── Random matchmaking ──────────────────────────────────────────────────────
   function startFind() {
     clearErr();
+    dropPendingInvite();
     myName = nameFromSheet();
     mode = currentMode();
     renderSearching(T('Connexion…', 'Connecting…'));
