@@ -64,6 +64,23 @@
   // ── Runtime state ──────────────────────────────────────────────────────────
   var db = null, auth = null, uid = null, myName = 'Player';
   var mode = 'yum';
+  // The database rules may only accept the original modes. Yamio uses the
+  // Yahtzee card, so if a write with mode "yamio" is denied we retry with
+  // "yahtzee" on the wire and keep Yamio locally (same card; power-ups travel
+  // in `cells`). Once the rules allow "yamio", no fallback is ever needed.
+  var modeFallback = false;
+  function wireMode() { return (mode === 'yamio' && modeFallback) ? 'yahtzee' : mode; }
+  function sameCard(a, b) {
+    if (a === b) return true;
+    return (a === 'yahtzee' || a === 'yamio') && (b === 'yahtzee' || b === 'yamio');
+  }
+  function isPermErr(e) { return /permission/i.test((e && (e.code || e.message)) || ''); }
+  function enableModeFallback() {
+    if (mode !== 'yamio' || modeFallback) return false;
+    modeFallback = true;
+    console.warn('[yumcard-mp] "yamio" rejected by the database rules; using "yahtzee" on the wire');
+    return true;
+  }
 
   var mmActive = false;               // searching or in a match
   var role = null;                    // 'host' | 'guest' | null
@@ -1458,7 +1475,7 @@
         return {
           host: uid,
           createdAt: now(),
-          mode: mode,
+          mode: wireMode(),
           createdBy: preferredCode ? 'friend' : 'match',
           players: makeSelfPlayer()
         };
@@ -1467,7 +1484,10 @@
         return tryNext();
       });
     }
-    return Promise.resolve().then(tryNext);
+    return Promise.resolve().then(tryNext).catch(function (e) {
+      if (isPermErr(e) && enableModeFallback()) { i = 0; return tryNext(); }
+      throw e;
+    });
   }
 
   function makeSelfPlayer() {
@@ -1492,7 +1512,7 @@
           return ref.remove().catch(function () {}).then(function () { throw new Error('expired'); });
         }
         if (room.host === uid) throw new Error('own-room');
-        mode = room.mode || 'yum';
+        mode = sameCard(room.mode, currentMode()) ? currentMode() : (room.mode || 'yum');
         mmActive = true; role = 'guest'; iAmDone = false; oppData = null;
         var hostHere = !!(room.players && room.players[room.host]);
         return ref.child('players/' + uid).set({
@@ -1519,7 +1539,7 @@
 
   function maybeSuggestMode(m) {
     // If the opponent's room uses a different mode than the local sheet, nudge.
-    if (m && m !== currentMode()) {
+    if (m && !sameCard(m, currentMode())) {
       var st = $('mpMatchStatus');
       if (st) st.textContent = T('Astuce : ton adversaire joue en mode ' + modeName(m) + '.',
                                  'Tip: your opponent is playing ' + modeName(m) + ' mode.');
@@ -1587,7 +1607,12 @@
   }
 
   function joinQueue() {
-    return db.ref(QUEUE + '/' + uid).set({ uid: uid, name: myName.slice(0, 20) || 'Player', ts: now(), mode: mode })
+    function entry() { return { uid: uid, name: myName.slice(0, 20) || 'Player', ts: now(), mode: wireMode() }; }
+    return db.ref(QUEUE + '/' + uid).set(entry())
+      .catch(function (e) {
+        if (isPermErr(e) && enableModeFallback()) return db.ref(QUEUE + '/' + uid).set(entry());
+        throw e;
+      })
       .then(function () {
         inQueue = true;
         try { db.ref(QUEUE + '/' + uid).onDisconnect().remove(); } catch (e) {}
@@ -1601,7 +1626,7 @@
       .filter(function (e) {
         var u = e[0], info = e[1];
         return u !== uid && info && typeof info.ts === 'number' &&
-          (t - info.ts) < STALE_MS && ((info.mode || 'yum') === mode) &&
+          (t - info.ts) < STALE_MS && ((info.mode || 'yum') === wireMode()) &&
           (wantGreater ? u > uid : u < uid);
       })
       .sort(function (a, b) { return (a[1].ts || 0) - (b[1].ts || 0); });
