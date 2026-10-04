@@ -844,14 +844,14 @@
     var B = m === 'yum' ? 25 : 35;
     var mean = 0, variance = 0;
     for (var c = 1; c <= 6; c++) {
-      // raw upper section decides the bonus; points (with any ×2) feed the total
-      var rawM = 0, rawV = 0, upLeft = 0, colM = 0, colV = 0;
+      // upper section (with any ×2) decides the bonus and feeds the total
+      var upLeft = 0, colM = 0, colV = 0;
       for (var n = 1; n <= 6; n++) {
         var v = cells['u' + n + '-' + c], k = cellMult(cells, 'u' + n, c, m);
-        if (typeof v === 'number') { rawM += v; colM += v * k; }
-        else { var e = catEv('u' + n, m); rawM += e[0]; rawV += e[1] * e[1]; colM += e[0] * k; colV += e[1] * e[1] * k * k; upLeft++; }
+        if (typeof v === 'number') colM += v * k;
+        else { var e = catEv('u' + n, m); colM += e[0] * k; colV += e[1] * e[1] * k * k; upLeft++; }
       }
-      var pB = upLeft === 0 ? (rawM >= 63 ? 1 : 0) : (rawV > 0 ? 1 - normCdf((63 - rawM) / Math.sqrt(rawV)) : (rawM >= 63 ? 1 : 0));
+      var pB = upLeft === 0 ? (colM >= 63 ? 1 : 0) : (colV > 0 ? 1 - normCdf((63 - colM) / Math.sqrt(colV)) : (colM >= 63 ? 1 : 0));
       colM += B * pB; colV += B * B * pB * (1 - pB);
       (LOWER_ORDER[m] || LOWER_ORDER.yum).forEach(function (rid) {
         var lk = cellMult(cells, rid, c, m);
@@ -918,20 +918,20 @@
   // Recompute a single column's totals from a whole-sheet cells map, mirroring
   // yum-card's own scoring (upper bonus at 63; 25 for Yum, 35 for Yahtzee).
   function colTotals(cells, c, m) {
-    // Bonus is judged on raw values; a doubled category counts twice in points.
-    var sub = 0, subPts = 0;
+    // A doubled category counts twice, including toward the 63 bonus.
+    var sub = 0;
     for (var n = 1; n <= 6; n++) {
       var v = cells['u' + n + '-' + c];
-      if (typeof v === 'number') { sub += v; subPts += v * cellMult(cells, 'u' + n, c, m); }
+      if (typeof v === 'number') sub += v * cellMult(cells, 'u' + n, c, m);
     }
     var bonus = sub >= 63 ? (m === 'yum' ? 25 : 35) : 0;
-    var upper = (subPts > 0 || bonus > 0) ? subPts + bonus : 0;
+    var upper = (sub > 0 || bonus > 0) ? sub + bonus : 0;
     var lower = 0;
     LOWER_ORDER[m].forEach(function (rid) {
       var lv = cells[rid + '-' + c];
       if (typeof lv === 'number') lower += lv * cellMult(cells, rid, c, m);
     });
-    return { sub: subPts, bonus: bonus, upper: upper, lower: lower, grand: upper + lower };
+    return { sub: sub, bonus: bonus, upper: upper, lower: lower, grand: upper + lower };
   }
   // Render the opponent's ENTIRE six-column sheet as a compact, scrollable grid.
   function paintDetails(me, opp) {
