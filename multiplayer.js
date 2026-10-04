@@ -336,6 +336,7 @@
       '.mp-mini tr.grand td{background:var(--green-row,#d8e8e0);font-weight:900;color:var(--green-dark,#235244)}',
       '.mp-mini tr.grand td.cat{background:var(--green-row,#d8e8e0)}',
       '.mp-mini .sx{color:#c05a52;font-weight:800}',
+      '.mp-mini .pw-ico{width:15px;height:15px;vertical-align:middle;display:inline-block}',
       '.mp-sheet-cap{text-align:center;font-size:12px;font-weight:800;color:var(--green-dark,#235244);margin-top:6px}',
       '.mp-sheet-empty{text-align:center;color:#7a877f;font-size:12.5px;padding:10px}',
       '.mp-toggle{background:none;border:none;color:var(--green,#2f6a5a);font-weight:800;font-size:12.5px;cursor:pointer;margin-top:8px;padding:4px}',
@@ -897,11 +898,16 @@
   // holds 99 (golden die, a marker) or the 1-based index (u1–u6, then lower
   // rows) of the category whose points count double.
   var POWER_SLOTS = [
-    { id: 'g1', label: T('🎲 Dé doré', '🎲 Golden die') },
-    { id: 'd1', label: T('×2 Double points', '×2 Double points') },
-    { id: 'x1', label: T('🏆 Extra · boni 63', '🏆 Extra · bonus 63') },
-    { id: 'x2', label: T('🎯 Extra · 5 combos', '🎯 Extra · 5 combos') }
+    { id: 'g1', icon: 'gold', text: T('Dé doré', 'Golden die') },
+    { id: 'd1', icon: 'dbl', text: T('Double points', 'Double points') },
+    { id: 'x1', icon: 'bonus', text: T('Extra · boni 63', 'Extra · bonus 63') },
+    { id: 'x2', icon: 'combos', text: T('Extra · 5 combos', 'Extra · 5 combos') }
   ];
+  // Power-up logos are defined by index.html (window.YUM_ICONS); text fallback.
+  function pwIco(name, fallback) {
+    var I = window.YUM_ICONS;
+    return (I && I[name]) ? I[name] : fallback;
+  }
   function cellMult(cells, rid, c, m) {
     if (m !== 'yamio') return 1;
     var idx = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6'].concat(LOWER_ORDER.yamio).indexOf(rid) + 1;
@@ -944,7 +950,7 @@
     }
     function cellVal(rid, c) {
       var v = cells[rid + '-' + c];
-      var x2 = cellMult(cells, rid, c, m) > 1 ? ' <span class="sx">×2</span>' : '';
+      var x2 = cellMult(cells, rid, c, m) > 1 ? ' ' + pwIco('dbl', '<span class="sx">×2</span>') : '';
       if (v === undefined) return x2;
       return (v === 0 ? '<span class="sx">✗</span>' : v) + x2;
     }
@@ -968,9 +974,9 @@
         var tds = '';
         for (var c = 1; c <= 6; c++) {
           var sv = cells[p.id + '-' + c];
-          tds += '<td>' + (sv === 99 ? '🎲' : (sv > 0 ? '×2' : '')) + '</td>';
+          tds += '<td>' + (sv === 99 ? pwIco('gold', '🎲') : (sv > 0 ? pwIco('dbl', '×2') : '')) + '</td>';
         }
-        html += '<tr class="sum"><td class="cat">' + p.label + '</td>' + tds + '</tr>';
+        html += '<tr class="sum"><td class="cat">' + pwIco(p.icon, '') + ' ' + p.text + '</td>' + tds + '</tr>';
       });
     }
     html += computedRow(T('TOTAL', 'TOTAL'), function (t) { return t.grand; }, 'grand');
