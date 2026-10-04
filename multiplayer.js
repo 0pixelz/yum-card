@@ -1550,6 +1550,7 @@
       return createRoom(null);
     }).then(function (code) {
       setInvite(code);
+      updateFabState();
       renderWaitingCode(code);
     }).catch(function (e) {
       console.warn('[yumcard-mp] create failed:', e);
@@ -1952,8 +1953,18 @@
   }
 
   // Expose a tiny hook for debugging/tests.
+  // Toolbar "Invite" button: same friend-code / QR flow as the panel. Shows the
+  // current match or pending invite if there is one, otherwise creates a code.
+  function openInvite() {
+    buildDom();
+    if (mmActive && roomCode) { openPanel(); return; }
+    $('mpBackdrop').classList.add('show');
+    startCreateCode();
+  }
+
   window.yumCardMP = {
     open: openPanel,
+    invite: openInvite,
     // Win estimate between two cells maps (numbers) in mode m — used by the
     // invite-link "opponent's score" popup in index.html.
     winEstimate: function (meCells, oppCells, m) {
